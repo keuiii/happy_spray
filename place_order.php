@@ -4,6 +4,7 @@ require_once 'classes/database.php';
 $db = Database::getInstance();
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $customer_id = $_SESSION['customer_id'] ?? 0; // 0 if guest
     $name     = trim($_POST['name']);
     $email    = trim($_POST['email']);
     // Address fields should be combined (as in checkout.php): street, city, province, postal
@@ -34,14 +35,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Insert into orders
     $params = [
-        $name, $email, $address, $payment, $grand_total, $gcash_proof
+        $customer_id, $name, $email, $address, $payment, $grand_total, $gcash_proof
     ];
-    $sql = "INSERT INTO orders (customer_name, email, address, payment_method, total_amount, gcash_proof, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW())";
+    $sql = "INSERT INTO orders (customer_id, customer_name, email, address, payment_method, total_amount, gcash_proof, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())";
     $order_id = $db->insert($sql, $params);
 
     // Insert order items
     foreach ($_SESSION['cart'] as $item) {
+
         $pname = $item['name'];
         $qty   = intval($item['quantity']);
         $price = floatval($item['price']);

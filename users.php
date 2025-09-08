@@ -3,7 +3,8 @@ require_once 'classes/database.php';
 $db = Database::getInstance();
 
 // ✅ Use centralized method
-$users = $db->getAllUsers();
+$users = $db->getAllCustomers();
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -35,9 +36,9 @@ $users = $db->getAllUsers();
         <?php if (!empty($users)): ?>
             <?php foreach($users as $row): ?>
             <tr>
-                <td><?= $row['id'] ?></td>
+                <td><?= $row['customer_id'] ?></td>
                 <td><?= htmlspecialchars($row['username']) ?></td>
-                <td><?= htmlspecialchars($row['role']) ?></td>
+                <td><?= $row['role'] ?? 'Customer' ?></td>
                 <td><?= $row['created_at'] ?></td>
             </tr>
             <?php endforeach; ?>

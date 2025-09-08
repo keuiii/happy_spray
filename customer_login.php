@@ -9,27 +9,20 @@ $msg = "";
 $redirect_to = $_GET['redirect_to'] ?? 'index.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username_or_email = trim($_POST['username_or_email']);
+    $usernameOrEmail = trim($_POST['username_or_email']); // match form field
     $password = trim($_POST['password']);
 
-    if ($username_or_email === "" || $password === "") {
-        $msg = "Please fill in all fields.";
-    } else {
-        // Login attempt
-        $result = $db->loginCustomerAuth($username_or_email, $password);
+    $result = $db->login($usernameOrEmail, $password);
 
-        if ($result['success']) {
-            $redirect = $_POST['redirect_to'] ?? 'index.php';
-            if ($redirect === 'customer_login.php' || empty($redirect)) {
-                $redirect = 'index.php';
-            }
-            header("Location: " . $redirect);
-            exit;
-        } else {
-            $msg = $result['message'];
-        }
+    if ($result['success']) {
+        header("Location: " . $result['redirect']);
+        exit;
+    } else {
+        $msg = $result['message']; // use $msg instead of $error (para consistent sa HTML)
     }
 }
+
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -72,25 +65,61 @@ body {
 .sub-nav a:hover { color: #555; }
 /* Login Form */
 .login-container {
-    background: #f5f5f5; padding: 40px; border-radius: 12px;
-    width: 360px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    text-align: center; margin: 150px auto 60px;
+    background: #e9e9e9ff; /* same as footer */
+    padding: 50px; 
+    border-radius: 12px;
+    width: 420px; /* bigger */
+    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+    text-align: center; 
+    margin: 180px auto 80px;
 }
-.login-container h2 { margin-bottom: 20px; font-size: 28px; font-weight: bold; }
+.login-container h2 { 
+    margin-bottom: 25px; 
+    font-size: 30px; 
+    font-weight: bold; 
+}
 .login-container input {
-    width: 100%; padding: 12px; margin: 10px 0;
-    border: 1px solid #ddd; border-radius: 8px; font-size: 14px;
+    width: 100%; 
+    padding: 15px; /* bigger inputs */
+    margin: 12px 0;
+    border: 1px solid #ccc; 
+    border-radius: 10px; 
+    font-size: 16px; 
+    box-sizing: border-box;
 }
 .login-container button {
-    width: 100%; padding: 12px; border: 1px solid #000;
-    border-radius: 8px; background: #fff; font-weight: bold;
-    cursor: pointer; transition: 0.3s;
+    width: 100%; 
+    padding: 15px; 
+    border: 1px solid #000;
+    border-radius: 10px; 
+    background: #fff; 
+    font-size: 16px; 
+    font-weight: bold;
+    cursor: pointer; 
+    transition: 0.3s;
+    margin-top: 10px; 
+    box-sizing: border-box;
 }
-.login-container button:hover { background: #000; color: #fff; }
-.msg { color: red; font-size: 14px; margin-bottom: 10px; }
-.extra-links { margin-top: 15px; font-size: 14px; }
-.extra-links a { color: #000; text-decoration: none; }
-.extra-links a:hover { text-decoration: underline; }
+.login-container button:hover { 
+    background: #000; 
+    color: #fff; 
+}
+.msg { 
+    color: red; 
+    font-size: 14px; 
+    margin-bottom: 12px; 
+}
+.extra-links { 
+    margin-top: 18px; 
+    font-size: 14px; 
+}
+.extra-links a { 
+    color: #000; 
+    text-decoration: none; 
+}
+.extra-links a:hover { 
+    text-decoration: underline; 
+}
 /* Footer */
 footer {
     background: #e9e9e9ff; border-top: 1px solid #eee;
@@ -110,14 +139,6 @@ footer {
 <div class="top-nav">
     <div class="logo">Happy Sprays</div>
     <div class="nav-actions">
-        <a href="cart.php" class="cart-link" title="Cart">
-            🛒
-        </a>
-        <?php if(isset($_SESSION['user_id'])): ?>
-            <a href="customer_dashboard.php" class="profile-link" title="My Account">👤</a>
-        <?php else: ?>
-            <a href="customer_login.php" class="profile-link" title="Login">👤</a>
-        <?php endif; ?>
     </div>
 </div>
 <!-- Sub Navbar -->
@@ -137,11 +158,11 @@ footer {
         <button type="submit">Login</button>
     </form>
     <div class="extra-links">
-        <a href="#">Forgot your password?</a><br>
+        <a href="forgot_password.php">Forgot your password?</a>
         <a href="customer_register.php">Sign up</a>
     </div>
 </div>
-<!-- Footer -->
+<!-- Footer --> 
 <footer>
     <div class="footer-columns">
         <div>

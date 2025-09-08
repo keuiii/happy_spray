@@ -1,14 +1,15 @@
+
 <?php
 require_once 'classes/database.php';
 session_start();
 
 $db = Database::getInstance();
 
-// Centralized authentication check
-if (!$db->isCustomerLoggedIn()) {
-    header("Location: customer_login.php?redirect_to=customer_dashboard.php");
-    exit();
+if (!$db->isLoggedIn() || $_SESSION['role'] !== 'customer') {
+    header("Location: customer_login.php");
+    exit;
 }
+
 
 $customer_id = $db->getCurrentCustomerId();
 

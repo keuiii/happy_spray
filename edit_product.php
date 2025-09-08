@@ -1,3 +1,4 @@
+
 <?php
 require_once 'classes/database.php';
 $db = Database::getInstance();

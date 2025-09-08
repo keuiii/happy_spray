@@ -101,7 +101,7 @@ $cart = $db->getCart();
         </tr>
     </table>
 
-    <?php if(isset($_SESSION['user_id'])): ?>
+    <?php if(isset($_SESSION['customer_id'])): ?>
         <a href="checkout.php" class="checkout-btn">Proceed to Checkout</a>
     <?php else: ?>
         <a href="customer_login.php?redirect_to=checkout.php" class="checkout-btn">Login to Checkout</a>
