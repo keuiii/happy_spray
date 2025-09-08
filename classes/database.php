@@ -13,7 +13,7 @@ class Database {
     private $charset = 'utf8mb4';
     
     // Private constructor to prevent direct instantiation
-    private function __construct() {
+     private function __construct() {
         $this->connect();
     }
     
@@ -107,8 +107,10 @@ class Database {
             throw new Exception("Delete query failed: " . $e->getMessage());
         }
     }
-    public function getAllUsers() {
-        return $this->select("SELECT id, username, role, created_at FROM users ORDER BY created_at DESC");
+    public function getAllCustomers() {
+        return $this->select("SELECT customer_id, firstname, lastname, username, email, created_at 
+                          FROM customers 
+                          ORDER BY created_at DESC");
     }
     // Helper method to delete a record safely by ID
     public function deleteById($table, $id) {
@@ -130,61 +132,18 @@ class Database {
             session_start();
         }
     }
-    
-   // Replace your existing methods in database.php with these fixed versions:
 
-// Replace your existing methods in database.php with these fixed versions:
-
-public function loginCustomerAuth($username_or_email, $password) {
-    if (empty($username_or_email) || empty($password)) {
-        return ["success" => false, "message" => "Please fill in all fields."];
-    }
-
-    try {
-        // Search by username OR email with role 'customer'
-        $user = $this->fetch(
-            "SELECT * FROM users WHERE (username = ? OR email = ?) AND role = 'customer' LIMIT 1",
-            [$username_or_email, $username_or_email]
-        );
-
-        if (!$user) {
-            // Check if account exists with different role
-            $anyUser = $this->fetch(
-                "SELECT role FROM users WHERE (username = ? OR email = ?) LIMIT 1",
-                [$username_or_email, $username_or_email]
-            );
-
-            if ($anyUser) {
-                return ["success" => false, "message" => "This account is not a customer account."];
-            }
-
-            return ["success" => false, "message" => "Account not found. Please register first."];
-        }
-
-        // Verify password
-        if (!password_verify($password, $user['password'])) {
-            return ["success" => false, "message" => "Incorrect password."];
-        }
-
-        // Save session
-        $this->loginCustomer($user);
-
-        return ["success" => true, "user" => $user];
-
-    } catch (Exception $e) {
-        error_log("Customer login error: " . $e->getMessage());
-        return ["success" => false, "message" => "Login error. Please try again."];
-    }
-}
-
-
+    // =================================================================
+// CUSTOMER REGISTRATION
+// =================================================================
 public function registerCustomer($firstname, $lastname, $username, $email, $password) {
     try {
-        // Check duplicates (username OR email)
+        // Check duplicates (username OR email) in customers table
         $existing = $this->fetch(
-            "SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1",
+            "SELECT customer_id FROM customers WHERE username = ? OR email = ? LIMIT 1",
             [$username, $email]
         );
+
         if ($existing) {
             return "Username or Email already exists.";
         }
@@ -192,15 +151,14 @@ public function registerCustomer($firstname, $lastname, $username, $email, $pass
         // Hash password
         $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
 
-        // Insert with default role = customer
-       $success = $this->insert(
-    "INSERT INTO users (firstname, lastname, username, email, password, role, created_at) 
-     VALUES (?, ?, ?, ?, ?, ?, NOW())",
-    [$firstname, $lastname, $username, $email, $hashedPassword, 'customer']
-);
+        // Insert new customer
+        $success = $this->insert(
+            "INSERT INTO customers (firstname, lastname, username, email, password, created_at) 
+             VALUES (?, ?, ?, ?, ?, NOW())",
+            [$firstname, $lastname, $username, $email, $hashedPassword]
+        );
 
-return $success ? true : "Registration failed. Please try again.";
-
+        return $success ? true : "Registration failed. Please try again.";
 
     } catch (Exception $e) {
         error_log("Register error: " . $e->getMessage());
@@ -208,14 +166,100 @@ return $success ? true : "Registration failed. Please try again.";
     }
 }
 
-public function isCustomerLoggedIn() {
+
+// =================================================================
+// UNIFIED LOGIN (Admins + Customers)
+// =================================================================
+public function login($usernameOrEmail, $password) {
     $this->startSession();
-    return isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role'] === 'customer';
+
+    try {
+        // 1. Check in admins table
+        $admin = $this->fetch(
+            "SELECT admin_id, username, password 
+             FROM admins 
+             WHERE username = ? 
+             LIMIT 1",
+            [$usernameOrEmail]
+        );
+
+        if ($admin && password_verify($password, $admin['password'])) {
+            $_SESSION['user_id'] = $admin['admin_id'];
+            $_SESSION['username'] = $admin['username'];
+            $_SESSION['role'] = "admin";
+
+            return [
+                "success" => true,
+                "redirect" => "admin_dashboard.php",
+                "user" => $admin
+            ];
+        }
+
+        // 2. Check in customers table
+        $customer = $this->fetch(
+            "SELECT customer_id, firstname, lastname, username, email, password
+             FROM customers
+             WHERE username = ? OR email = ?
+             LIMIT 1",
+            [$usernameOrEmail, $usernameOrEmail]
+        );
+
+        if ($customer && password_verify($password, $customer['password'])) {
+            $_SESSION['customer_id'] = $customer['customer_id'];
+            $_SESSION['username'] = $customer['username'];
+            $_SESSION['customer_name'] = $customer['firstname'] . " " . $customer['lastname'];
+            $_SESSION['email'] = $customer['email'];
+            $_SESSION['role'] = "customer";
+
+            return [
+                "success" => true,
+                "redirect" => "index.php",
+                "user" => $customer
+            ];
+        }
+
+        // If not found anywhere
+        return ["success" => false, "message" => "Invalid username/email or password."];
+
+    } catch (Exception $e) {
+        error_log("Login error: " . $e->getMessage());
+        return ["success" => false, "message" => "Login failed. Please try again."];
+    }
+}
+
+
+// =================================================================
+// LOGOUT (works for both Admin + Customer)
+// =================================================================
+public function logout() {
+    $this->startSession();
+
+    $_SESSION = array();
+
+    if (isset($_COOKIE[session_name()])) {
+        setcookie(session_name(), '', time() - 3600, '/');
+    }
+
+    session_destroy();
+}
+
+
+// =================================================================
+// SESSION HELPERS
+// =================================================================
+public function isLoggedIn() {
+    $this->startSession();
+    return isset($_SESSION['role']); // admin or customer
+}
+
+public function getCurrentUserRole() {
+    $this->startSession();
+    return $_SESSION['role'] ?? null;
 }
 
 public function getCurrentCustomerId() {
     $this->startSession();
-    return $_SESSION['user_id'] ?? null;
+    return $_SESSION['customer_id'] ?? null;
 }
 
 public function getCurrentCustomer() {
@@ -223,105 +267,15 @@ public function getCurrentCustomer() {
     if (!$customerId) {
         return null;
     }
-    
+
     return $this->fetch(
-        "SELECT * FROM users WHERE id = ? AND role = 'customer' LIMIT 1",
+        "SELECT * FROM customers WHERE customer_id = ? LIMIT 1",
         [$customerId]
     );
 }
 
-public function loginCustomer($user) {
-    $this->startSession();
-    
-    $_SESSION['user_id'] = $user['id'];
-    $_SESSION['username'] = $user['username'];
-    $_SESSION['role'] = $user['role'];
-    $_SESSION['customer_name'] = trim(($user['firstname'] ?? '') . ' ' . ($user['lastname'] ?? ''));
-}
 
-public function logoutCustomer() {
-    $this->startSession();
-    
-    // Clear all session variables
-    $_SESSION = array();
-    
-    // Destroy session cookie
-    if (isset($_COOKIE[session_name()])) {
-        setcookie(session_name(), '', time()-3600, '/');
-    }
-    
-    session_destroy();
-}
-public function registerUser($username, $password, $role, $secret_code) {
-    // Check secret code
-    if ($secret_code !== "happy2025") {
-        return ["success" => false, "message" => "Invalid registration code."];
-    }
-
-    if ($username === "" || $password === "") {
-        return ["success" => false, "message" => "All fields are required."];
-    }
-
-    // Check if username exists
-    $existing = $this->fetch("SELECT id FROM users WHERE username = ?", [$username]);
-    if ($existing) {
-        return ["success" => false, "message" => "Username already exists."];
-    }
-
-    // Hash password
-    $hashed = password_hash($password, PASSWORD_DEFAULT);
-
-    // Insert new user
-    $success = $this->insert(
-        "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-        [$username, $hashed, $role]
-    );
-
-    if ($success) {
-        return ["success" => true, "message" => "Account created successfully."];
-    } else {
-        return ["success" => false, "message" => "Error: Registration failed."];
-    }
-}
-
-
-// ✅ Additional helper method for checking any logged-in user
-public function isLoggedIn() {
-    $this->startSession();
-    return isset($_SESSION['user_id']) && isset($_SESSION['role']);
-}
-
-// ✅ Additional helper method for getting current user role
-public function getCurrentUserRole() {
-    $this->startSession();
-    return $_SESSION['role'] ?? null;
-}
-// Add this temporary debug method to your Database class
-public function debugUserCheck($username) {
-    try {
-        // Check if user exists at all
-        $anyUser = $this->fetch("SELECT id, username, role FROM users WHERE username = ?", [$username]);
-        
-        // Check customer specifically
-        $customerUser = $this->fetch("SELECT id, username, role FROM users WHERE username = ? AND role = 'customer'", [$username]);
-        
-        // Check all users (for debugging)
-        $allUsers = $this->fetchAll("SELECT id, username, role FROM users ORDER BY id DESC LIMIT 5");
-        
-        return [
-            'searched_username' => $username,
-            'any_user_found' => $anyUser,
-            'customer_user_found' => $customerUser,
-            'recent_users' => $allUsers
-        ];
-    } catch (Exception $e) {
-        return ['error' => $e->getMessage()];
-    }
-}
-
-    // =================================================================
     // PAGINATION HELPER
-    // =================================================================
     
     public function getPaginatedResults($table, $page = 1, $limit = 10, $orderBy = "id DESC") {
         try {
@@ -351,68 +305,6 @@ public function debugUserCheck($username) {
         }
     }
 
-    // =================================================================
-    // AUTHENTICATION METHODS
-    // =================================================================
-    
-    public function authenticateUser($username, $password, $role = 'user') {
-        try {
-            // Support both email and username fields
-            $stmt = $this->connection->prepare("SELECT id, password, role, email FROM users WHERE (username = ? OR email = ?) AND role = ? LIMIT 1");
-            $stmt->execute([$username, $username, $role]);
-            $user = $stmt->fetch();
-            
-            if ($user && password_verify($password, $user['password'])) {
-                return $user;
-            }
-            return false;
-        } catch (PDOException $e) {
-            throw new Exception("Authentication failed: " . $e->getMessage());
-        }
-    }
-    
-        // =================================================================
-    // CUSTOMER LOGIN METHOD
-    // =================================================================
-    
-    public function loginAdmin($username, $password) {
-        if ($username === "" || $password === "") {
-            return ["success" => false, "message" => "Please fill in all fields."];
-        }
-
-        try {
-            $user = $this->fetch(
-                "SELECT * FROM users WHERE username = ? AND role = 'admin' LIMIT 1",
-                [$username]
-            );
-
-            if (!$user) {
-                return ["success" => false, "message" => "Admin account not found."];
-            }
-
-            if (!password_verify($password, $user['password'])) {
-                return ["success" => false, "message" => "Incorrect password."];
-            }
-
-            return ["success" => true, "user" => $user];
-
-        } catch (Exception $e) {
-            error_log("Admin login error: " . $e->getMessage());
-            return ["success" => false, "message" => "Login error. Please try again."];
-        }
-    }
-
-    public function loginUser($username, $password) {
-        // Fetch user by username
-        $user = $this->fetch("SELECT id, username, password, role FROM users WHERE username = ? LIMIT 1", [$username]);
-
-        // Check if user exists and password is correct
-        if ($user && password_verify($password, $user['password'])) {
-            return $user; // return user details if login successful
-        }
-
-        return false; // login failed
-    }
     // =================================================================
 // ORDER MANAGEMENT METHODS (Add these to your Database.php class)
 // =================================================================
@@ -1256,20 +1148,6 @@ public function formatOrderDate($date) {
             'total' => $this->calculateGrandTotal(),
             'item_count' => array_sum(array_column($this->getCartItems(), 'quantity'))
         ];
-    }
-    function getImagePath($imageName) {
-    if (empty($imageName)) {
-        return 'images/placeholder.jpg';
-    }
-   
-    $cleanImageName = basename($imageName);
-    $imagePath = "images/" . $cleanImageName;
-   
-    if (file_exists($imagePath)) {
-        return $imagePath;
-    } else {
-        return 'images/placeholder.jpg';
-        }
     }
 }
 ?>
