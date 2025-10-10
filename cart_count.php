@@ -1,10 +1,5 @@
-
 <?php
 session_start();
-$count = 0;
-if(isset($_SESSION['cart'])){
-    foreach($_SESSION['cart'] as $item){
-        $count += $item['quantity'];
-    }
-}
-echo $count;
+echo isset($_SESSION['cart']) ? count($_SESSION['cart']) : 0;
+?>
+

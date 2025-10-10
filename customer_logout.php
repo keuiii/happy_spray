@@ -1,6 +1,10 @@
-    <?php
+<?php
 session_start();
-session_unset();
-session_destroy();
+require_once 'classes/database.php';
+
+$db = Database::getInstance();
+$db->logout();
+
 header("Location: index.php");
 exit;
+?>

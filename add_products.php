@@ -1,93 +1,586 @@
 <?php
+session_start();
 require_once 'classes/database.php';
+
 $db = Database::getInstance();
 
-$editProduct = null;
-
-// Handle Add Product
-if (isset($_POST['submit'])) {
-    $db->addProduct($_POST, $_FILES);
-}
-
-// Handle Edit (get product to edit)
-if (isset($_GET['edit'])) {
-    $editProduct = $db->getProductById(intval($_GET['edit']));
-}
-
-// Handle Update
-if (isset($_POST['update'])) {
-    $db->updateProduct($_POST, $_FILES);
-    header("Location: add_products.php");
+// Check if admin is logged in
+if (!$db->isLoggedIn() || $db->getCurrentUserRole() !== 'admin') {
+    header("Location: customer_login.php");
     exit;
+}
+
+$error = '';
+$success = '';
+
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
+    $data = [
+        'perfume_name' => trim($_POST['perfume_name']),
+        'perfume_brand' => trim($_POST['perfume_brand']),
+        'perfume_price' => floatval($_POST['perfume_price']),
+        'perfume_ml' => trim($_POST['perfume_ml']),
+        'sex' => $_POST['sex'],
+        'perfume_desc' => trim($_POST['perfume_desc']),
+        'stock' => intval($_POST['stock']),
+        'scent_family' => trim($_POST['scent_family']),
+        'admin_id' => $_SESSION['admin_id'] ?? 3
+    ];
+
+    // Validation
+    if (empty($data['perfume_name']) || empty($data['perfume_brand']) || empty($data['perfume_price'])) {
+        $error = "Please fill in all required fields.";
+    } elseif ($data['perfume_price'] <= 0) {
+        $error = "Price must be greater than 0.";
+    } elseif ($data['stock'] < 0) {
+        $error = "Stock cannot be negative.";
+    } else {
+        // ---- Handle multiple image uploads ----
+        $imageNames = []; // store uploaded image names
+
+        function uploadImage($fileKey)
+        {
+            $allowed = ['jpg', 'jpeg', 'png', 'gif'];
+            if (isset($_FILES[$fileKey]) && $_FILES[$fileKey]['error'] === UPLOAD_ERR_OK) {
+                $filename = $_FILES[$fileKey]['name'];
+                $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+                if (!in_array($ext, $allowed)) {
+                    throw new Exception("Invalid file type for $fileKey. Only JPG, PNG, GIF allowed.");
+                }
+                if ($_FILES[$fileKey]['size'] > 5 * 1024 * 1024) {
+                    throw new Exception("$fileKey must be less than 5MB.");
+                }
+                $newName = time() . '_' . uniqid() . '.' . $ext;
+                $uploadPath = "images/" . $newName;
+                if (!move_uploaded_file($_FILES[$fileKey]['tmp_name'], $uploadPath)) {
+                    throw new Exception("Failed to upload $fileKey.");
+                }
+                return $newName;
+            }
+            return null;
+        }
+
+        try {
+            $mainImage = uploadImage('image');
+            $extraImage = uploadImage('image2');
+            if ($mainImage) $imageNames[] = $mainImage;
+            if ($extraImage) $imageNames[] = $extraImage;
+        } catch (Exception $e) {
+            $error = $e->getMessage();
+        }
+
+        // If everything validated
+        if (empty($error)) {
+            try {
+                // Step 1: Insert perfume
+                $productId = $db->addProduct($data, $_FILES);
+
+                // Step 2: Insert image records if perfume inserted
+                if ($productId && !empty($imageNames)) {
+                    foreach ($imageNames as $img) {
+                        $filePath = "images/" . $img;
+                        $db->insert(
+                            "INSERT INTO images (perfume_id, file_name, file_path) VALUES (?, ?, ?)",
+                            [$productId, $img, $filePath]
+                        );
+                    }
+                }
+
+                if ($productId) {
+                    $success = "Product added successfully!";
+                    $_POST = []; // Clear form
+                } else {
+                    $error = "Failed to add product.";
+                }
+
+            } catch (Exception $e) {
+                error_log("Add product error: " . $e->getMessage());
+                $error = "Failed to add product. Please try again.";
+            }
+        }
+    }
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Admin - Add / Edit Products</title>
-<!-- Keep your same CSS -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Add Product - Happy Sprays Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 30px; color: #333; }
-    h2 { text-align: center; margin-bottom: 20px; font-weight: 600; }
-    form { max-width: 520px; margin: auto; padding: 25px; border-radius: 10px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    form input, form select, form textarea { width: 100%; padding: 8px 10px; margin: 8px 0 15px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
-    form textarea { min-height: 90px; resize: vertical; }
-    form label { font-size: 14px; font-weight: 500; color: #555; display: block; margin-top: 5px; }
-    form button { display: block; width: 100%; padding: 12px 18px; border: none; background: #333; color: #fff; cursor: pointer; border-radius: 6px; font-size: 16px; font-weight: 600; transition: all 0.3s; text-transform: uppercase; letter-spacing: 1px; }
-    form button:hover { background: #555; }
-    img { border-radius: 6px; margin-top: 8px; border: 1px solid #eee; }
-    a.manage-link { display: block; text-align: center; margin: 25px auto; padding: 8px 16px; border: 1px solid #333; background: #fff; text-decoration: none; color: #333; font-weight: 500; border-radius: 6px; max-width: 180px; transition: all 0.3s; }
-    a.manage-link:hover { background: #333; color: #fff; }
+* {margin:0; padding:0; box-sizing:border-box;}
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f0f5;
+    display: flex;
+}
+
+.sidebar {
+    width: 260px;
+    background: #fff;
+    color: #333;
+    min-height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+}
+
+.sidebar-header {
+    padding: 35px 30px;
+    border-bottom: 1px solid #e8e8e8;
+    background: #fff;
+}
+
+.sidebar-header h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #000;
+    font-weight: 700;
+}
+
+.sidebar-menu {
+    padding: 30px 0;
+}
+
+.menu-item {
+    padding: 16px 30px;
+    color: #666;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.3s;
+    font-weight: 500;
+    font-size: 15px;
+    margin: 4px 15px;
+    border-radius: 10px;
+}
+
+.menu-item::before {
+    content: '○';
+    font-size: 18px;
+}
+
+.menu-item:hover {
+    background: #f5f5f5;
+    color: #000;
+}
+
+.menu-item.active {
+    background: #000;
+    color: #fff;
+}
+
+.menu-item.active::before {
+    content: '●';
+}
+
+.sidebar-footer {
+    position: absolute;
+    bottom: 30px;
+    width: 100%;
+    padding: 0 15px;
+}
+
+.logout-item {
+    padding: 16px 30px;
+    color: #d32f2f;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+    font-size: 15px;
+    margin: 4px 0;
+    border-radius: 10px;
+    transition: all 0.3s;
+}
+
+.logout-item:hover {
+    background: #ffebee;
+}
+
+.main-content {
+    margin-left: 260px;
+    flex: 1;
+    padding: 40px;
+    background: #f0f0f5;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 25px;
+    color: #666;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 15px;
+    transition: all 0.3s;
+}
+
+.back-link:hover {
+    color: #000;
+}
+
+.form-container {
+    background: #fff;
+    padding: 40px;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    max-width: 900px;
+}
+
+.page-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 30px;
+    color: #000;
+}
+
+.message {
+    padding: 16px 20px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.message.success {
+    background: #d1fae5;
+    color: #065f46;
+    border-left: 4px solid #10b981;
+}
+
+.message.error {
+    background: #fee2e2;
+    color: #991b1b;
+    border-left: 4px solid #ef4444;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px;
+}
+
+.form-group {
+    margin-bottom: 25px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: #000;
+    font-size: 14px;
+}
+
+.form-group label .required {
+    color: #ef4444;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    background: #fafafa;
+    transition: all 0.3s;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #000;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 120px;
+    line-height: 1.6;
+}
+
+.form-group small {
+    display: block;
+    margin-top: 6px;
+    color: #888;
+    font-size: 13px;
+}
+
+.image-preview {
+    margin-top: 15px;
+    padding: 15px;
+    background: #f0f7ff;
+    border-radius: 10px;
+    border: 1px solid #d1e7ff;
+}
+
+.image-preview img {
+    width: 100%;
+    max-width: 200px;
+    border-radius: 8px;
+    border: 2px solid #0066cc;
+}
+
+.file-input-wrapper {
+    position: relative;
+    display: inline-block;
+    margin-top: 5px;
+}
+
+.file-input-wrapper input[type="file"] {
+    padding: 10px 16px;
+    cursor: pointer;
+}
+
+.btn {
+    padding: 12px 28px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    transition: all 0.3s;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-primary {
+    background: #000;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: #333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.btn-secondary {
+    background: #fff;
+    color: #000;
+    border: 2px solid #e0e0e0;
+}
+
+.btn-secondary:hover {
+    background: #f5f5f5;
+    border-color: #000;
+}
+
+.form-actions {
+    display: flex;
+    gap: 15px;
+    margin-top: 35px;
+    padding-top: 25px;
+    border-top: 1px solid #e8e8e8;
+}
+
+@media (max-width: 992px) {
+    .sidebar {
+        width: 220px;
+    }
+    
+    .main-content {
+        margin-left: 220px;
+        padding: 25px;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        width: 70px;
+    }
+    
+    .main-content {
+        margin-left: 70px;
+        padding: 20px;
+    }
+    
+    .form-container {
+        padding: 25px;
+    }
+    
+    .page-title {
+        font-size: 24px;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
 </style>
 </head>
-
 <body>
-<?php if($editProduct): ?>
-    <h2>Edit Product</h2>
-    <form method="post" enctype="multipart/form-data">
-        <input type="hidden" name="id" value="<?= $editProduct['id'] ?>">
-        <input type="text" name="name" value="<?= htmlspecialchars($editProduct['name']) ?>" required>
-        <input type="text" name="brand" value="<?= htmlspecialchars($editProduct['brand']) ?>" required>
-        <input type="number" step="0.01" name="price" value="<?= htmlspecialchars($editProduct['price']) ?>" required>
-        <input type="text" name="ml_size" value="<?= htmlspecialchars($editProduct['ml_size']) ?>" placeholder="Bottle Size (e.g. 50ml)">
-        <select name="gender" required>
-            <option value="Male" <?= $editProduct['gender']=='Male'?'selected':'' ?>>Male</option>
-            <option value="Female" <?= $editProduct['gender']=='Female'?'selected':'' ?>>Female</option>
-            <option value="Unisex" <?= $editProduct['gender']=='Unisex'?'selected':'' ?>>Unisex</option>
-        </select>
-        <input type="number" name="stock" value="<?= htmlspecialchars($editProduct['stock']) ?>" required>
-        <textarea name="description"><?= htmlspecialchars($editProduct['description']) ?></textarea>
-        <label>Update Main Image:</label>
-        <input type="file" name="image">
-        <?php if($editProduct['image']): ?><img src="images/<?= htmlspecialchars($editProduct['image']) ?>" width="60"><?php endif; ?>
-        <label>Update Second Image (Optional):</label>
-        <input type="file" name="image2">
-        <?php if($editProduct['image2']): ?><img src="images/<?= htmlspecialchars($editProduct['image2']) ?>" width="60"><?php endif; ?>
-        <button type="submit" name="update">Update Product</button>
-    </form>
-<?php else: ?>
-    <h2>Add New Product</h2>
-    <form method="post" enctype="multipart/form-data">
-        <input type="text" name="name" placeholder="Product Name" required>
-        <input type="text" name="brand" placeholder="Inspired Scent" required>
-        <input type="number" step="0.01" name="price" placeholder="Price" required>
-        <input type="text" name="ml_size" placeholder="Bottle Size (e.g. 50ml)">
-        <select name="gender" required>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-            <option value="Unisex">Unisex</option>
-        </select>
-        <input type="number" name="stock" placeholder="Stock" required>
-        <textarea name="description" placeholder="Description"></textarea>
-        <label>Upload Main Image:</label>
-        <input type="file" name="image" required>
-        <label>Upload Second Image (Optional):</label>
-        <input type="file" name="image2">
-        <button type="submit" name="submit">Add Product</button>
-    </form>
-<?php endif; ?>
 
-<a href="admin_dashboard.php" class="manage-link">Go to Dashboard</a>
+<div class="sidebar">
+    <div class="sidebar-header">
+        <h2>Happy Sprays</h2>
+    </div>
+    <nav class="sidebar-menu">
+        <a href="admin_dashboard.php" class="menu-item">Dashboard</a>
+        <a href="orders.php" class="menu-item">Orders</a>
+        <a href="products_list.php" class="menu-item active">Products</a>
+        <a href="users.php" class="menu-item">Customers</a>
+        <a href="admin_contact_messages.php" class="menu-item">Messages</a>
+    </nav>
+    <div class="sidebar-footer">
+        <a href="customer_logout.php" class="logout-item">🚪 Logout</a>
+    </div>
+</div>
+
+<div class="main-content">
+    <a href="products_list.php" class="back-link">← Back to Products</a>
+    
+    <div class="form-container">
+        <h1 class="page-title">Add New Product</h1>
+        
+        <?php if ($error): ?>
+            <div class="message error"><?= htmlspecialchars($error) ?></div>
+        <?php endif; ?>
+        
+        <?php if ($success): ?>
+            <div class="message success"><?= htmlspecialchars($success) ?></div>
+        <?php endif; ?>
+        
+        <form method="POST" action="add_products.php" enctype="multipart/form-data">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="perfume_name">Product Name *</label>
+                    <input type="text" 
+                           id="perfume_name" 
+                           name="perfume_name" 
+                           value="<?= htmlspecialchars($_POST['perfume_name'] ?? '') ?>"
+                           required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="perfume_brand">Brand *</label>
+                    <input type="text" 
+                           id="perfume_brand" 
+                           name="perfume_brand" 
+                           value="<?= htmlspecialchars($_POST['perfume_brand'] ?? '') ?>"
+                           required>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="perfume_price">Price (₱) *</label>
+                    <input type="number" 
+                           id="perfume_price" 
+                           name="perfume_price" 
+                           step="0.01" 
+                           min="0"
+                           value="<?= htmlspecialchars($_POST['perfume_price'] ?? '') ?>"
+                           required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="perfume_ml">Volume (ml) *</label>
+                    <input type="text" 
+                           id="perfume_ml" 
+                           name="perfume_ml" 
+                           value="<?= htmlspecialchars($_POST['perfume_ml'] ?? '') ?>"
+                           required>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="sex">Category *</label>
+                    <select id="sex" name="sex" required>
+                        <option value="">Select Category</option>
+                        <option value="Male" <?= ($_POST['sex'] ?? '') === 'Male' ? 'selected' : '' ?>>For Him</option>
+                        <option value="Female" <?= ($_POST['sex'] ?? '') === 'Female' ? 'selected' : '' ?>>For Her</option>
+                        <option value="Unisex" <?= ($_POST['sex'] ?? '') === 'Unisex' ? 'selected' : '' ?>>Unisex</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="stock">Stock Quantity *</label>
+                    <input type="number" 
+                           id="stock" 
+                           name="stock" 
+                           min="0"
+                           value="<?= htmlspecialchars($_POST['stock'] ?? '0') ?>"
+                           required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="scent_family">Scent Family</label>
+                <input type="text" 
+                       id="scent_family" 
+                       name="scent_family" 
+                       placeholder="e.g., Floral, Woody, Fresh"
+                       value="<?= htmlspecialchars($_POST['scent_family'] ?? '') ?>">
+            </div>
+            
+            <div class="form-group">
+                <label for="perfume_desc">Description</label>
+                <textarea id="perfume_desc" 
+                          name="perfume_desc" 
+                          placeholder="Enter product description..."><?= htmlspecialchars($_POST['perfume_desc'] ?? '') ?></textarea>
+            </div>
+
+            <!-- Image Uploads -->
+            <div class="form-group">
+                <label for="image">Main Product Image</label>
+                <input type="file" id="image" name="image" accept="image/*" onchange="previewImage(event, 'preview1', 'imagePreview1')">
+                <div id="imagePreview1" class="image-preview" style="display:none;">
+                    <img id="preview1" src="" alt="Preview 1">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="image2">Additional Image (optional)</label>
+                <input type="file" id="image2" name="image2" accept="image/*" onchange="previewImage(event, 'preview2', 'imagePreview2')">
+                <div id="imagePreview2" class="image-preview" style="display:none;">
+                    <img id="preview2" src="" alt="Preview 2">
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" name="add_product" class="btn btn-primary">Add Product</button>
+                <a href="products_list.php" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function previewImage(event, imgId, containerId) {
+    const preview = document.getElementById(imgId);
+    const container = document.getElementById(containerId);
+    const file = event.target.files[0];
+    
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            container.style.display = 'block';
+        }
+        reader.readAsDataURL(file);
+    }
+}
+</script>
+
 </body>
 </html>

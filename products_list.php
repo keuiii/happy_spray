@@ -1,257 +1,524 @@
 <?php
-// Include centralized database connection
+session_start();
 require_once 'classes/database.php';
 
-try {
-    // Get database instance
-    $db = Database::getInstance();
-    
-    // Handle Delete
-    if (isset($_GET['delete'])) {
-        $id = intval($_GET['delete']);
-        $deleted = $db->deleteById('perfumes', $id);
-        
-        if ($deleted > 0) {
-            // Redirect to avoid resubmission on refresh
-            header("Location: products_list.php?success=deleted");
-            exit;
-        }
-    }
-    
-    // PAGINATION
-    $limit = 5;
-    $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-    
-    // Get paginated results using the centralized method
-    $paginationResult = $db->getPaginatedResults('perfumes', $page, $limit, 'id DESC');
-    
-    $products = $paginationResult['data'];
-    $totalProducts = $paginationResult['total'];
-    $totalPages = $paginationResult['total_pages'];
-    $currentPage = $paginationResult['current_page'];
-    
-} catch (Exception $e) {
-    // Handle any database errors gracefully
-    $error = "Error loading products. Please try again.";
-    $products = [];
-    $totalPages = 0;
-    $currentPage = 1;
-    // Optionally log the error: error_log($e->getMessage());
+$db = Database::getInstance();
+
+// Check if admin is logged in
+if (!$db->isLoggedIn() || $db->getCurrentUserRole() !== 'admin') {
+    header("Location: customer_login.php");
+    exit;
 }
+
+// Handle delete
+if (isset($_GET['delete'])) {
+    $id = intval($_GET['delete']);
+    try {
+        $db->delete("DELETE FROM perfumes WHERE perfume_id = ?", [$id]);
+        $message = "Product deleted successfully!";
+        $messageType = "success";
+    } catch (Exception $e) {
+        $message = "Failed to delete product.";
+        $messageType = "error";
+    }
+}
+
+// Get filters
+$sexFilter = isset($_GET['sex']) ? $_GET['sex'] : null;
+$searchQuery = isset($_GET['search']) ? $_GET['search'] : null;
+
+$products = $db->getPerfumes($sexFilter, $searchQuery);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Products List - Happy Sprays</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Products Management - Happy Sprays Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 <style>
+* {margin:0; padding:0; box-sizing:border-box;}
 body {
-    font-family: Arial, sans-serif;
-    margin: 20px;
-    background: #f9f9f9;
-    color: #333;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f0f5;
+    display: flex;
 }
-h2 {
-    text-align: center;
-    margin-bottom: 20px;
-    color: #222;
-}
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
+
+.sidebar {
+    width: 260px;
     background: #fff;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-}
-th, td {
-    padding: 12px;
-    text-align: center;
-}
-th {
-    background: #f4f4f4;
     color: #333;
-    font-weight: bold;
-    border-bottom: 2px solid #ddd;
+    min-height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.05);
 }
-td {
-    border-bottom: 1px solid #eee;
-}
-tr:nth-child(even) {
-    background: #fafafa;
-}
-a.delete {
-    color: #d9534f;
-    text-decoration: none;
-    font-weight: bold;
-    padding: 6px 10px;
-    border-radius: 4px;
-    transition: background 0.2s;
-}
-a.delete:hover {
-    background: #d9534f;
-    color: #fff;
-}
-a.edit {
-    color: #0275d8;
-    text-decoration: none;
-    font-weight: bold;
-    padding: 6px 10px;
-    border-radius: 4px;
-    transition: background 0.2s;
-}
-a.edit:hover {
-    background: #0275d8;
-    color: #fff;
-}
-img {
-    border-radius: 6px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-.pagination {
-    text-align: center;
-    margin: 20px 0;
-}
-.pagination a {
-    padding: 8px 14px;
-    margin: 2px;
-    border: 1px solid #ddd;
-    text-decoration: none;
-    color: #333;
-    border-radius: 5px;
+
+.sidebar-header {
+    padding: 35px 30px;
+    border-bottom: 1px solid #e8e8e8;
     background: #fff;
-    transition: all 0.2s;
 }
-.pagination a:hover {
-    background: #333;
-    color: #fff;
+
+.sidebar-header h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #000;
+    font-weight: 700;
 }
-.pagination a.active {
-    background: #333;
-    color: #fff;
-    font-weight: bold;
+
+.sidebar-menu {
+    padding: 30px 0;
 }
-.back-btn {
-    display: inline-block;
-    margin: 10px 0 20px;
-    padding: 10px 18px;
-    border: none;
-    background: #333;
+
+.menu-item {
+    padding: 16px 30px;
+    color: #666;
     text-decoration: none;
-    color: #fff;
-    font-weight: bold;
-    border-radius: 6px;
-    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.3s;
+    font-weight: 500;
+    font-size: 15px;
+    margin: 4px 15px;
+    border-radius: 10px;
 }
-.back-btn:hover {
+
+.menu-item::before {
+    content: '○';
+    font-size: 18px;
+}
+
+.menu-item:hover {
+    background: #f5f5f5;
+    color: #000;
+}
+
+.menu-item.active {
     background: #000;
+    color: #fff;
 }
+
+.menu-item.active::before {
+    content: '●';
+}
+
+.sidebar-footer {
+    position: absolute;
+    bottom: 30px;
+    width: 100%;
+    padding: 0 15px;
+}
+
+.logout-item {
+    padding: 16px 30px;
+    color: #d32f2f;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+    font-size: 15px;
+    margin: 4px 0;
+    border-radius: 10px;
+    transition: all 0.3s;
+}
+
+.logout-item:hover {
+    background: #ffebee;
+}
+
+.main-content {
+    margin-left: 260px;
+    flex: 1;
+    padding: 40px;
+    background: #f0f0f5;
+}
+
+.top-bar {
+    background: transparent;
+    padding: 0;
+    margin-bottom: 30px;
+}
+
+.top-bar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.page-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: #000;
+}
+
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.3s;
+    font-size: 14px;
+}
+
+.btn-primary {
+    background: #000;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: #333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.btn-edit {
+    background: #667eea;
+    color: #fff;
+    padding: 8px 16px;
+    font-size: 13px;
+    border-radius: 8px;
+}
+
+.btn-edit:hover {
+    background: #5568d3;
+}
+
+.btn-delete {
+    background: #ef4444;
+    color: #fff;
+    padding: 8px 16px;
+    font-size: 13px;
+    border-radius: 8px;
+}
+
+.btn-delete:hover {
+    background: #dc2626;
+}
+
+.filters-bar {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    background: #fff;
+    padding: 25px;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin-bottom: 30px;
+}
+
+.search-box {
+    flex: 1;
+    min-width: 300px;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 12px 18px;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 14px;
+    background: #fafafa;
+    transition: all 0.3s;
+}
+
+.search-box input:focus {
+    outline: none;
+    border-color: #000;
+    background: #fff;
+}
+
+.filter-select {
+    padding: 12px 18px;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 14px;
+    background: #fafafa;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: #000;
+    background: #fff;
+}
+
 .message {
-    padding: 10px;
-    margin: 10px 0;
-    border-radius: 4px;
-    text-align: center;
+    padding: 16px 20px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    font-size: 14px;
+    font-weight: 500;
 }
-.success {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
+
+.message.success {
+    background: #d1fae5;
+    color: #065f46;
+    border-left: 4px solid #10b981;
 }
-.error {
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
+
+.message.error {
+    background: #fee2e2;
+    color: #991b1b;
+    border-left: 4px solid #ef4444;
 }
+
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 25px;
+}
+
+.product-card {
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: all 0.3s;
+}
+
+.product-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+}
+
+.product-image {
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+    background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+}
+
+.product-info {
+    padding: 20px;
+}
+
+.product-name {
+    font-weight: 700;
+    font-size: 17px;
+    margin-bottom: 6px;
+    color: #000;
+}
+
+.product-brand {
+    color: #888;
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.product-price {
+    font-size: 20px;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: 12px;
+}
+
+.product-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 18px;
+    padding: 10px 0;
+    border-top: 1px solid #f0f0f0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.stock-badge {
+    background: #d1fae5;
+    color: #065f46;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.stock-low {
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.product-actions {
+    display: flex;
+    gap: 10px;
+}
+
 .empty-state {
     text-align: center;
-    padding: 40px;
-    color: #666;
+    padding: 80px 20px;
+    color: #999;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.empty-state h3 {
+    font-size: 24px;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.empty-state p {
+    color: #888;
+    margin-bottom: 25px;
+}
+
+@media (max-width: 992px) {
+    .sidebar {
+        width: 220px;
+    }
+    
+    .main-content {
+        margin-left: 220px;
+        padding: 25px;
+    }
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        width: 70px;
+    }
+    
+    .main-content {
+        margin-left: 70px;
+        padding: 20px;
+    }
+    
+    .page-title {
+        font-size: 24px;
+    }
+    
+    .products-grid {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 </head>
-
 <body>
 
-<a href="admin_dashboard.php" class="back-btn">← Back to Dashboard</a>
-
-<?php if (isset($_GET['success']) && $_GET['success'] == 'deleted'): ?>
-    <div class="message success">Product deleted successfully!</div>
-<?php endif; ?>
-
-<?php if (isset($error)): ?>
-    <div class="message error"><?= htmlspecialchars($error) ?></div>
-<?php endif; ?>
-
-<div id="productsTable">
-<h2>Existing Products</h2>
-
-<?php if (empty($products)): ?>
-    <div class="empty-state">
-        <p>No products found.</p>
-        <a href="add_products.php" class="back-btn">Add First Product</a>
+<div class="sidebar">
+    <div class="sidebar-header">
+        <h2>Happy Sprays</h2>
     </div>
-<?php else: ?>
-
-<table>
-<tr>
-    <th>ID</th>
-    <th>Name</th>
-    <th>Inspired Scent</th>
-    <th>Price</th>
-    <th>Gender</th>
-    <th>Stock</th>
-    <th>Images</th>
-    <th>Actions</th>
-</tr>
-<?php foreach ($products as $product): ?>
-<tr>
-    <td><?= htmlspecialchars($product['id']) ?></td>
-    <td><?= htmlspecialchars($product['name']) ?></td>
-    <td><?= htmlspecialchars($product['brand']) ?></td>
-    <td>$<?= number_format($product['price'], 2) ?></td>
-    <td><?= htmlspecialchars($product['gender']) ?></td>
-    <td><?= htmlspecialchars($product['stock']) ?></td>
-    <td>
-        <?php if (!empty($product['image'])): ?>
-            <img src="images/<?= htmlspecialchars($product['image']) ?>" width="60" alt="Product Image">
-        <?php endif; ?>
-        <?php if (!empty($product['image2'])): ?>
-            <img src="images/<?= htmlspecialchars($product['image2']) ?>" width="60" alt="Product Image 2">
-        <?php endif; ?>
-    </td>
-    <td>
-        <a class="edit" href="add_products.php?edit=<?= $product['id'] ?>">Edit</a> | 
-        <a class="delete" href="products_list.php?delete=<?= $product['id'] ?>" onclick="return confirm('Delete this product?');">Delete</a>
-    </td>
-</tr>
-<?php endforeach; ?>
-</table>
-
-<?php if ($totalPages > 1): ?>
-<div class="pagination">
-    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-        <a href="products_list.php?page=<?= $i ?>" class="<?= ($i == $currentPage) ? 'active' : '' ?>">
-            <?= $i ?>
-        </a>
-    <?php endfor; ?>
-</div>
-<?php endif; ?>
-
-<?php endif; ?>
-
-<p style="text-align: center; margin-top: 20px; color: #666;">
-    Showing <?= count($products) ?> of <?= $totalProducts ?> products
-</p>
-
+    <nav class="sidebar-menu">
+        <a href="admin_dashboard.php" class="menu-item">Dashboard</a>
+        <a href="orders.php" class="menu-item">orders</a>
+        <a href="products_list.php" class="menu-item active">Products</a>
+        <a href="users.php" class="menu-item">Customers</a>
+        <a href="admin_contact_messages.php" class="menu-item">Messages</a>
+    </nav>
+            <div class="sidebar-footer">
+            <a href="customer_logout.php" class="logout-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                Log out
+            </a>
+        </div>
+    </div>
 </div>
 
-<script>
-function toggleProducts(){
-    const table=document.getElementById("productsTable");
-    table.style.display = (table.style.display==="none"||table.style.display==="") ? "block" : "none";
-}
-</script>
+<div class="main-content">
+    <div class="top-bar">
+        <div class="top-bar-header">
+            <h1 class="page-title">Products Management</h1>
+            <a href="add_products.php" class="btn btn-primary">+ Add New Product</a>
+        </div>
+    </div>
+    
+    <?php if (isset($message)): ?>
+        <div class="message <?= $messageType ?>">
+            <?= htmlspecialchars($message) ?>
+        </div>
+    <?php endif; ?>
+    
+    <form method="GET" action="products_list.php" class="filters-bar">
+        <div class="search-box">
+            <input type="text" 
+                   name="search" 
+                   placeholder="🔍 Search products..."
+                   value="<?= htmlspecialchars($searchQuery ?? '') ?>">
+        </div>
+        
+        <select name="sex" class="filter-select" onchange="this.form.submit()">
+            <option value="">All Categories</option>
+            <option value="Male" <?= $sexFilter === 'Male' ? 'selected' : '' ?>>For Him</option>
+            <option value="Female" <?= $sexFilter === 'Female' ? 'selected' : '' ?>>For Her</option>
+        </select>
+        
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+    
+    <?php if (empty($products)): ?>
+        <div class="empty-state">
+            <h3>No Products Found</h3>
+            <p>Start by adding your first product.</p>
+            <a href="add_products.php" class="btn btn-primary" style="margin-top: 20px;">Add Product</a>
+        </div>
+    <?php else: ?>
+        <div class="products-grid">
+            <?php foreach ($products as $product): 
+                // Fetch the product image from images table
+                $imageData = $db->fetch("
+                    SELECT file_path 
+                    FROM images 
+                    WHERE perfume_id = ? 
+                    LIMIT 1
+                ", [$product['perfume_id']]);
+                
+                $imagePath = $imageData['file_path'] ?? 'images/DEFAULT.png';
+            ?>
+                <div class="product-card">
+                    <img src="<?= htmlspecialchars($imagePath) ?>" 
+                         alt="<?= htmlspecialchars($product['perfume_name']) ?>"
+                         class="product-image"
+                         onerror="this.src='images/DEFAULT.png'">
+                    
+                    <div class="product-info">
+                        <div class="product-name"><?= htmlspecialchars($product['perfume_name']) ?></div>
+                        <div class="product-brand"><?= htmlspecialchars($product['perfume_brand']) ?></div>
+                        <div class="product-price">₱<?= number_format($product['perfume_price'], 2) ?></div>
+                        
+                        <div class="product-meta">
+                            <span><?= htmlspecialchars($product['perfume_ml']) ?>ml</span>
+                            <span class="<?= $product['stock'] < 10 ? 'stock-low' : 'stock-badge' ?>">
+                                Stock: <?= $product['stock'] ?>
+                            </span>
+                        </div>
+                        
+                        <div class="product-actions">
+                            <a href="edit_product.php?id=<?= $product['perfume_id'] ?>" class="btn btn-edit">
+                                Edit
+                            </a>
+                            <a href="products_list.php?delete=<?= $product['perfume_id'] ?>" 
+                               class="btn btn-delete"
+                               onclick="return confirm('Delete this product?')">
+                                Delete
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+</div>
 
 </body>
 </html>

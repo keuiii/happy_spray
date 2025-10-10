@@ -1,28 +1,30 @@
 <?php
-header('Content-Type: application/json');
-
+session_start();
 require_once 'classes/database.php';
+
 $db = Database::getInstance();
 
-// Get query
-$q = isset($_GET['q']) ? trim($_GET['q']) : '';
+header('Content-Type: application/json');
 
-$results = [];
-if ($q !== '') {
-    $like = "%{$q}%";
-    // table name = perfumes (ayon sa code mo)
-    $rows = $db->select(
-        "SELECT id, name, image, price FROM perfumes 
-         WHERE name LIKE ? 
-         OR description LIKE ? 
-         LIMIT 10",
-        [$like, $like]
-    );
-
-    if ($rows) {
-        $results = $rows;
-    }
+if (!isset($_GET['q']) || empty(trim($_GET['q']))) {
+    echo json_encode([]);
+    exit;
 }
 
-echo json_encode($results);
+$searchQuery = trim($_GET['q']);
+$searchLike = "%" . $searchQuery . "%";
+
+try {
+    $results = $db->select(
+        "SELECT perfume_id as id, perfume_name as name, perfume_price as price, image 
+         FROM perfumes 
+         WHERE perfume_name LIKE ? OR perfume_brand LIKE ? OR perfume_descr LIKE ?
+         LIMIT 5",
+        [$searchLike, $searchLike, $searchLike]
+    );
+    
+    echo json_encode($results);
+} catch (Exception $e) {
+    echo json_encode([]);
+}
 ?>

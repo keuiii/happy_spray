@@ -127,7 +127,7 @@ footer {
     text-decoration: none;
     color: #555;
     margin: 5px 0;
-}
+} 
 .footer-columns a:hover { color: #000; }
 .social-icons { margin-top: 15px; }
 .social-icons a {

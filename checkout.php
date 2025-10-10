@@ -1,372 +1,479 @@
 <?php
 session_start();
-require_once "classes/database.php";
+require_once 'classes/database.php';
 
 $db = Database::getInstance();
 
-// Redirect if cart is empty
-if ($db->isCartEmpty()) {
-    header("Location: cart.php?error=empty_cart");
+// Check if user is logged in
+if (!$db->isUserLoggedIn()) {
+    header("Location: customer_login.php?redirect=checkout.php");
     exit;
 }
 
-// Get checkout summary using centralized method
-$checkoutSummary = $db->getCheckoutSummary();
-$cart_items = $checkoutSummary['items'];
-$grand_total = $checkoutSummary['total'];
-$item_count = $checkoutSummary['item_count'];
-
-// Pre-fill form if user is logged in
-$user_data = [];
-if ($db->isLoggedIn()) {
-    // You can extend this to get user details from database
-    $user_data = [
-        'name' => $_SESSION['customer_name'] ?? '',
-        'email' => $_SESSION['customer_email'] ?? ''
-    ];
+// Check if cart is empty
+if ($db->isCartEmpty()) {
+    header("Location: cart.php");
+    exit;
 }
+
+$error = '';
+$success = '';
+
+// Handle checkout form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
+    try {
+        $data = [
+            'customer_firstname' => $_POST['customer_firstname'] ?? '',
+            'customer_lastname' => $_POST['customer_lastname'] ?? '',
+            'customer_email' => $_POST['customer_email'] ?? '',
+            'name' => trim($_POST['customer_firstname'] . ' ' . $_POST['customer_lastname']),
+            'email' => $_POST['customer_email'] ?? '',
+            'phone' => $_POST['phone'] ?? '',
+            'street' => $_POST['street'] ?? '',
+            'barangay' => $_POST['barangay'] ?? '',
+            'city' => $_POST['city'] ?? '',
+            'province' => $_POST['province'] ?? '',
+            'postal_code' => $_POST['postal_code'] ?? '',
+            'payment_method' => $_POST['payment_method'] ?? ''
+        ];
+        
+        $files = $_FILES;
+        
+        $orderId = $db->processCheckout($data, $files);
+        
+        header("Location: order_success.php?order_id=" . $orderId);
+        exit;
+        
+    } catch (Exception $e) {
+        $error = $e->getMessage();
+    }
+}
+
+// Get current customer info
+$customer = $db->getCurrentCustomer();
+$cartSummary = $db->getCheckoutSummary();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Checkout - Happy Sprays</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background: #fff;
-            margin: 20px;
-            color: #000;
-        }
-        h1 {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .back-btn {
-            display: inline-block;
-            margin: 10px 0 20px 20px;
-            padding: 8px 16px;
-            border: 1px solid #000;
-            text-decoration: none;
-            color: #000;
-            border-radius: 4px;
-            transition: all 0.2s;
-        }
-        .back-btn:hover {
-            background: #000;
-            color: #fff;
-        }
-        .checkout-container {
-            width: 80%;
-            margin: auto;
-            display: flex;
-            gap: 30px;
-        }
-        .form-section, .summary-section {
-            flex: 1;
-            border: 1px solid #000;
-            padding: 20px;
-            border-radius: 4px;
-        }
-        .form-section h2, .summary-section h2 {
-            margin-top: 0;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-        }
-        input, textarea, select {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #000;
-            border-radius: 4px;
-            background: none;
-            box-sizing: border-box;
-        }
-        .required {
-            color: red;
-        }
-        .place-order-btn {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #000;
-            background: none;
-            color: #000;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .place-order-btn:hover {
-            background: #000;
-            color: #fff;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            border: 1px solid #000;
-        }
-        th, td {
-            border: 1px solid #000;
-            padding: 10px;
-            text-align: center;
-        }
-        th {
-            background: #f2f2f2;
-            font-weight: bold;
-        }
-        img {
-            width: 50px;
-            height: 50px;
-            object-fit: cover;
-            border: 1px solid #000;
-            border-radius: 4px;
-        }
-        .gcash-info {
-            display: none;
-            padding: 15px;
-            border: 1px solid #28a745;
-            border-radius: 6px;
-            margin-top: 10px;
-            font-size: 14px;
-            background: #f8f9fa;
-        }
-        .gcash-info img {
-            width: 150px;
-            margin: 10px 0;
-            border: 1px solid #000;
-            border-radius: 6px;
-        }
-        .gcash-info h3 {
-            color: #28a745;
-            margin-top: 0;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkout - Happy Sprays</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+* {margin:0; padding:0; box-sizing:border-box;}
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f5f5f5;
+    color: #000;
+}
 
-        /* Popup styles */
-        .popup {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.6);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-        .popup-content {
-            background: #fff;
-            padding: 30px;
-            border-radius: 6px;
-            text-align: center;
-            max-width: 400px;
-            border: 1px solid #000;
-        }
-        .popup button {
-            margin: 10px;
-            padding: 10px 20px;
-            border: 1px solid #000;
-            background: none;
-            cursor: pointer;
-            font-size: 14px;
-            border-radius: 4px;
-            transition: all 0.2s;
-        }
-        .popup button:hover {
-            background: #000;
-            color: #fff;
-        }
-        .hidden { display: none; }
-        
-        .order-info {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            border-left: 4px solid #007bff;
-        }
-        
-        .item-count {
-            color: #666;
-            font-size: 14px;
-            text-align: center;
-            margin-bottom: 15px;
-        }
-        
-        @media (max-width: 768px) {
-            .checkout-container {
-                flex-direction: column;
-                width: 95%;
-            }
-        }
-    </style>
-    <script>
-        function togglePaymentDetails() {
-            let payment = document.getElementById("payment").value;
-            let gcashInfo = document.getElementById("gcash-info");
+.top-nav {
+    background: #fff;
+    border-bottom: 1px solid #eee;
+    padding: 20px;
+    text-align: center;
+}
 
-            if (payment === "gcash") {
-                gcashInfo.style.display = "block";
-                document.getElementById("gcash_ref").setAttribute("required", "required");
-            } else {
-                gcashInfo.style.display = "none";
-                document.getElementById("gcash_ref").removeAttribute("required");
-            }
-        }
+.top-nav h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
 
-        function checkAuthBeforePlaceOrder() {
-            let loggedIn = <?= $db->isLoggedIn() ? 'true' : 'false' ?>;
-            if (!loggedIn) {
-                document.getElementById('authPopup').classList.remove('hidden');
-                return false; // stop submit
-            }
-            
-            // Additional client-side validation
-            let requiredFields = ['name', 'email', 'street', 'city', 'province', 'postal'];
-            for (let field of requiredFields) {
-                let element = document.getElementById(field);
-                if (!element.value.trim()) {
-                    alert(`Please fill in ${field.charAt(0).toUpperCase() + field.slice(1)}`);
-                    element.focus();
-                    return false;
-                }
-            }
-            
-            return true;
-        }
-        
-        function closePopup() {
-            document.getElementById('authPopup').classList.add('hidden');
-        }
-    </script>
+.container {
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+
+.checkout-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 30px;
+}
+
+.checkout-form {
+    background: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #000;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #000;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.payment-options {
+    display: flex;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.payment-option {
+    flex: 1;
+    padding: 15px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.3s;
+    text-align: center;
+}
+
+.payment-option:hover {
+    border-color: #000;
+}
+
+.payment-option input[type="radio"] {
+    display: none;
+}
+
+.payment-option input[type="radio"]:checked + label {
+    font-weight: 700;
+}
+
+.payment-option.selected {
+    border-color: #000;
+    background: #f9f9f9;
+}
+
+#gcashProofSection {
+    display: none;
+    margin-top: 15px;
+    padding: 15px;
+    background: #f9f9f9;
+    border-radius: 5px;
+}
+
+.order-summary {
+    background: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    position: sticky;
+    top: 20px;
+}
+
+.cart-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.cart-item:last-child {
+    border-bottom: none;
+}
+
+.item-details {
+    flex: 1;
+}
+
+.item-name {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.item-price {
+    color: #666;
+    font-size: 14px;
+}
+
+.summary-totals {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 2px solid #000;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.summary-row.total {
+    font-weight: 700;
+    font-size: 18px;
+}
+
+.place-order-btn {
+    width: 100%;
+    padding: 15px;
+    background: #000;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 20px;
+    transition: 0.3s;
+}
+
+.place-order-btn:hover {
+    background: #333;
+}
+
+.error-message {
+    background: #ffebee;
+    color: #c62828;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    border-left: 4px solid #c62828;
+}
+
+.back-link {
+    display: inline-block;
+    margin-bottom: 20px;
+    color: #000;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.back-link:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+    .checkout-wrapper {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
 </head>
 <body>
-    <a href="cart.php" class="back-btn">← Back to Cart</a>
-    <h1>Checkout</h1>
 
-    <!-- Auth Popup -->
-    <div id="authPopup" class="popup hidden">
-        <div class="popup-content">
-            <h2>Login or Create an Account</h2>
-            <p>To track the status of your order, please log in or create an account.</p>
-            <div>
-                <button onclick="location.href='customer_login.php'">Login</button>
-                <button onclick="location.href='customer_register.php'">Create Account</button>
-                <button onclick="closePopup()">Continue as Guest</button>
-            </div>
-        </div>
-    </div>
+<div class="top-nav">
+    <h1>Happy Sprays</h1>
+</div>
 
-    <div class="checkout-container">
-        <!-- Checkout Form -->
-        <div class="form-section">
-            <h2>Delivery Information</h2>
+<div class="container">
+    <a href="cart.php" class="back-link">← Back to Cart</a>
+    
+    <?php if ($error): ?>
+        <div class="error-message"><?= htmlspecialchars($error) ?></div>
+    <?php endif; ?>
+    
+    <div class="checkout-wrapper">
+        <div class="checkout-form">
+            <h2 class="section-title">Billing Information</h2>
             
-            <div class="order-info">
-                <strong>Order Summary:</strong> <?= $item_count ?> item(s) totaling ₱<?= number_format($grand_total, 2) ?>
-            </div>
-            
-            <form action="place_order.php" method="POST" enctype="multipart/form-data">
-                <label for="name">Full Name <span class="required">*</span></label>
-                <input type="text" id="name" name="name" value="<?= htmlspecialchars($user_data['name'] ?? '') ?>" required>
-
-                <label for="email">Email Address <span class="required">*</span></label>
-                <input type="email" id="email" name="email" value="<?= htmlspecialchars($user_data['email'] ?? '') ?>" required>
-
-                <label for="phone">Phone Number</label>
-                <input type="tel" id="phone" name="phone" placeholder="09XXXXXXXXX">
-
-                <label for="street">Street / Barangay <span class="required">*</span></label>
-                <input type="text" id="street" name="street" required>
-
-                <label for="city">City / Municipality <span class="required">*</span></label>
-                <input type="text" id="city" name="city" required>
-
-                <label for="province">Province <span class="required">*</span></label>
-                <input type="text" id="province" name="province" required>
-
-                <label for="postal">Postal Code <span class="required">*</span></label>
-                <input type="text" id="postal" name="postal" pattern="[0-9]{4}" placeholder="1234" required>
-
-                <label for="payment">Payment Method <span class="required">*</span></label>
-                <select id="payment" name="payment" required onchange="togglePaymentDetails()">
-                    <option value="">-- Select Payment Method --</option>
-                    <option value="cod">Cash on Delivery</option>
-                    <option value="gcash">GCash</option>
-                </select>
-
-                <!-- GCash details -->
-                <div id="gcash-info" class="gcash-info">
-                    <h3>💳 Pay with GCash</h3>
-                    <p><strong>Step 1:</strong> Scan this QR code or send to the number below</p>
-                    <img src="images/qrfake.png" alt="GCash QR">
-                    <p><strong>GCash Number:</strong> 09451038854</p>
-                    <p><strong>Account Name:</strong> Happy Sprays</p>
-                    <p><strong>Amount:</strong> ₱<?= number_format($grand_total, 2) ?></p>
-                    <hr>
-                    <p><strong>Step 2:</strong> Upload screenshot of payment confirmation</p>
-                    <label for="gcash_ref">Proof of Payment <span class="required">*</span></label>
-                    <input type="file" id="gcash_ref" name="gcash_ref" accept="image/*">
-                    <small style="color: #666;">Accepted formats: JPG, PNG (Max 5MB)</small>
+            <form method="POST" action="checkout.php" enctype="multipart/form-data">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="customer_firstname">First Name *</label>
+                        <input type="text" 
+                               id="customer_firstname" 
+                               name="customer_firstname" 
+                               value="<?= htmlspecialchars($customer['customer_firstname'] ?? '') ?>" 
+                               required>
+                    </div>
+                    <div class="form-group">
+                        <label for="customer_lastname">Last Name *</label>
+                        <input type="text" 
+                               id="customer_lastname" 
+                               name="customer_lastname" 
+                               value="<?= htmlspecialchars($customer['customer_lastname'] ?? '') ?>" 
+                               required>
+                    </div>
                 </div>
+                
+                <div class="form-group">
+                    <label for="customer_email">Email *</label>
+                    <input type="email" 
+                           id="customer_email" 
+                           name="customer_email" 
+                           value="<?= htmlspecialchars($customer['customer_email'] ?? '') ?>" 
+                           required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="phone">Phone Number</label>
+                    <input type="tel" id="phone" name="phone" placeholder="09XX XXX XXXX">
+                </div>
+                
+                <h2 class="section-title" style="margin-top: 30px;">Delivery Address</h2>
+                
+                <div class="form-group">
+                    <label for="street">Street Address *</label>
+                    <input type="text" id="street" name="street" required>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="barangay">Barangay</label>
+                        <input type="text" id="barangay" name="barangay">
+                    </div>
+                    <div class="form-group">
+                        <label for="city">City *</label>
+                        <input type="text" id="city" name="city" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="province">Province *</label>
+                        <input type="text" id="province" name="province" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="postal_code">Postal Code *</label>
+                        <input type="text" id="postal_code" name="postal_code" required>
+                    </div>
+                </div>
+                
+                <h2 class="section-title" style="margin-top: 30px;">Payment Method</h2>
+                
+                <div class="payment-options">
+                    <div class="payment-option" data-payment="cod">
+                        <input type="radio" name="payment_method" value="cod" id="cod" required>
+                        <label for="cod">
+                            <strong>Cash on Delivery</strong><br>
+                            <small>Pay when you receive</small>
+                        </label>
+                    </div>
+                    <div class="payment-option" data-payment="gcash">
+                        <input type="radio" name="payment_method" value="gcash" id="gcash">
+                        <label for="gcash">
+                            <strong>GCash</strong><br>
+                            <small>Pay via GCash</small>
+                        </label>
+                    </div>
+                </div>
+                
+                <div id="gcashProofSection">
+    <label for="gcash_ref">Upload Proof of Payment *</label>
+    <input type="file" name="gcash_ref" id="gcash_ref" accept="image/*">
+    <small style="display: block; margin-top: 5px; color: #666;">
+        Send payment to: Happy Sprays 0945 1038 854 (GCash) or you can scan the QR code.
 
-                <button type="submit" class="place-order-btn" onclick="return checkAuthBeforePlaceOrder()">
-                    Place Order - ₱<?= number_format($grand_total, 2) ?>
+    </small>
+    <div style="margin-top:15px; text-align:center;">
+        <img src="images/qrgcash.jpg" alt="GCash QR Code" style="max-width:200px; border:2px solid #ddd; border-radius:8px;">
+    </div>
+</div>
+
+                
+                <button type="submit" name="place_order" class="place-order-btn">
+                    Place Order
                 </button>
             </form>
         </div>
-
-        <!-- Order Summary -->
-        <div class="summary-section">
-            <h2>Order Summary</h2>
+        
+        <div class="order-summary">
+            <h2 class="section-title">Order Summary</h2>
             
-            <div class="item-count">
-                <?= $item_count ?> item(s) in your order
-            </div>
+            <?php foreach ($cartSummary['items'] as $id => $item): ?>
+                <div class="cart-item">
+                    <div class="item-details">
+                        <div class="item-name"><?= htmlspecialchars($item['name']) ?></div>
+                        <div class="item-price">
+                            ₱<?= number_format($item['price'], 2) ?> x <?= $item['quantity'] ?>
+                        </div>
+                    </div>
+                    <div>₱<?= number_format($item['price'] * $item['quantity'], 2) ?></div>
+                </div>
+            <?php endforeach; ?>
             
-            <table>
-                <thead>
-                    <tr>
-                        <th>Image</th>
-                        <th>Perfume</th>
-                        <th>Qty</th>
-                        <th>Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($cart_items as $item): ?>
-                    <tr>
-                        <td>
-                            <img src="images/<?= htmlspecialchars($item['image']) ?>" 
-                                 alt="<?= htmlspecialchars($item['name']) ?>" 
-                                 onerror="this.src='images/placeholder.jpg'">
-                        </td>
-                        <td style="text-align: left;">
-                            <strong><?= htmlspecialchars($item['name']) ?></strong><br>
-                            <small>₱<?= number_format($item['price'], 2) ?> each</small>
-                        </td>
-                        <td><?= $item['quantity'] ?></td>
-                        <td><strong>₱<?= number_format($item['price'] * $item['quantity'], 2) ?></strong></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-                <tfoot>
-                    <tr style="background: #f8f9fa;">
-                        <th colspan="3">Grand Total</th>
-                        <th style="color: #007bff; font-size: 18px;">₱<?= number_format($grand_total, 2) ?></th>
-                    </tr>
-                </tfoot>
-            </table>
-            
-            <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px; font-size: 12px; color: #666;">
-                <strong>Note:</strong> Orders are processed within 1-2 business days. 
-                You will receive an email confirmation once your order is placed.
+            <div class="summary-totals">
+                <div class="summary-row">
+                    <span>Subtotal:</span>
+                    <span>₱<?= number_format($cartSummary['total'], 2) ?></span>
+                </div>
+                <div class="summary-row">
+                    <span>Shipping:</span>
+                    <span>FREE</span>
+                </div>
+                <div class="summary-row total">
+                    <span>Total:</span>
+                    <span>₱<?= number_format($cartSummary['total'], 2) ?></span>
+                </div>
             </div>
         </div>
     </div>
+</div>
+
+<script>
+// Payment method selection
+const paymentOptions = document.querySelectorAll('.payment-option');
+const gcashSection = document.getElementById('gcashProofSection');
+const gcashInput = document.getElementById('gcash_ref');
+
+paymentOptions.forEach(option => {
+    option.addEventListener('click', function() {
+        paymentOptions.forEach(opt => opt.classList.remove('selected'));
+        this.classList.add('selected');
+        
+        const radio = this.querySelector('input[type="radio"]');
+        radio.checked = true;
+        
+        if (radio.value === 'gcash') {
+            gcashSection.style.display = 'block';
+            gcashInput.required = true;
+        } else {
+            gcashSection.style.display = 'none';
+            gcashInput.required = false;
+        }
+    });
+});
+
+// Form validation
+document.querySelector('form').addEventListener('submit', function(e) {
+    const paymentMethod = document.querySelector('input[name="payment_method"]:checked');
+    
+    if (!paymentMethod) {
+        e.preventDefault();
+        alert('Please select a payment method');
+        return false;
+    }
+    
+    if (paymentMethod.value === 'gcash' && !gcashInput.files[0]) {
+        e.preventDefault();
+        alert('Please upload proof of payment for GCash');
+        return false;
+    }
+});
+</script>
+
 </body>
 </html>

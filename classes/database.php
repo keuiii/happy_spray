@@ -13,7 +13,7 @@ class Database {
     private $charset = 'utf8mb4';
     
     // Private constructor to prevent direct instantiation
-     private function __construct() {
+    private function __construct() {
         $this->connect();
     }
     
@@ -107,11 +107,13 @@ class Database {
             throw new Exception("Delete query failed: " . $e->getMessage());
         }
     }
+    
     public function getAllCustomers() {
-        return $this->select("SELECT customer_id, firstname, lastname, username, email, created_at 
+        return $this->select("SELECT customer_id, customer_firstname, customer_lastname, customer_username, customer_email, is_verified, cs_created_at 
                           FROM customers 
-                          ORDER BY created_at DESC");
+                          ORDER BY cs_created_at DESC");
     }
+    
     // Helper method to delete a record safely by ID
     public function deleteById($table, $id) {
         try {
@@ -134,58 +136,57 @@ class Database {
     }
 
     // =================================================================
-// CUSTOMER REGISTRATION
-// =================================================================
-public function registerCustomer($firstname, $lastname, $username, $email, $password) {
-    try {
-        // Check duplicates (username OR email) in customers table
-        $existing = $this->fetch(
-            "SELECT customer_id FROM customers WHERE username = ? OR email = ? LIMIT 1",
-            [$username, $email]
-        );
+    // CUSTOMER REGISTRATION
+    // =================================================================
+    public function registerCustomer($customer_firstname, $customer_lastname, $customer_username, $customer_email, $customer_password) {
+        try {
+            // Check duplicates (username OR email) in customers table
+            $existing = $this->fetch(
+                "SELECT customer_id FROM customers WHERE customer_username = ? OR customer_email = ? LIMIT 1",
+                [$customer_username, $customer_email]
+            );
 
-        if ($existing) {
-            return "Username or Email already exists.";
+            if ($existing) {
+                return "Username or Email already exists.";
+            }
+
+            // Hash password
+            $hashedPassword = password_hash($customer_password, PASSWORD_BCRYPT);
+
+            // Insert new customer
+            $success = $this->insert(
+                "INSERT INTO customers (customer_firstname, customer_lastname, customer_username, customer_email, customer_password, cs_created_at) 
+                 VALUES (?, ?, ?, ?, ?, NOW())",
+                [$customer_firstname, $customer_lastname, $customer_username, $customer_email, $hashedPassword]
+            );
+
+            return $success ? true : "Registration failed. Please try again.";
+
+        } catch (Exception $e) {
+            error_log("Register error: " . $e->getMessage());
+            return "Registration failed. Please try again.";
         }
-
-        // Hash password
-        $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
-
-        // Insert new customer
-        $success = $this->insert(
-            "INSERT INTO customers (firstname, lastname, username, email, password, created_at) 
-             VALUES (?, ?, ?, ?, ?, NOW())",
-            [$firstname, $lastname, $username, $email, $hashedPassword]
-        );
-
-        return $success ? true : "Registration failed. Please try again.";
-
-    } catch (Exception $e) {
-        error_log("Register error: " . $e->getMessage());
-        return "Registration failed. Please try again.";
     }
-}
 
-
-// =================================================================
-// UNIFIED LOGIN (Admins + Customers)
-// =================================================================
-public function login($usernameOrEmail, $password) {
+    // =================================================================
+    // UNIFIED LOGIN (Admins + Customers)
+    // =================================================================
+    public function login($usernameOrEmail, $password) {
     $this->startSession();
 
     try {
-        // 1. Check in admins table
         $admin = $this->fetch(
-            "SELECT admin_id, username, password 
-             FROM admins 
-             WHERE username = ? 
-             LIMIT 1",
-            [$usernameOrEmail]
+        "SELECT admin_id, admin_username, admin_email, admin_password 
+        FROM admins 
+        WHERE admin_username = ? OR admin_email = ?
+        LIMIT 1",
+        [$usernameOrEmail, $usernameOrEmail]
         );
 
-        if ($admin && password_verify($password, $admin['password'])) {
+
+        if ($admin && password_verify($password, $admin['admin_password'])) {
             $_SESSION['user_id'] = $admin['admin_id'];
-            $_SESSION['username'] = $admin['username'];
+            $_SESSION['username'] = $admin['admin_username'];
             $_SESSION['role'] = "admin";
 
             return [
@@ -195,20 +196,23 @@ public function login($usernameOrEmail, $password) {
             ];
         }
 
-        // 2. Check in customers table
         $customer = $this->fetch(
-            "SELECT customer_id, firstname, lastname, username, email, password
+            "SELECT customer_id, customer_firstname, customer_lastname, customer_username, customer_email, customer_password, is_verified
              FROM customers
-             WHERE username = ? OR email = ?
+             WHERE customer_username = ? OR customer_email = ?
              LIMIT 1",
             [$usernameOrEmail, $usernameOrEmail]
         );
 
-        if ($customer && password_verify($password, $customer['password'])) {
-            $_SESSION['customer_id'] = $customer['customer_id'];
-            $_SESSION['username'] = $customer['username'];
-            $_SESSION['customer_name'] = $customer['firstname'] . " " . $customer['lastname'];
-            $_SESSION['email'] = $customer['email'];
+        if ($customer && password_verify($password, $customer['customer_password'])) {
+            if ($customer['is_verified'] == 0) {
+                return ["success" => false, "message" => "Please verify your account before logging in."];
+            }
+
+            $_SESSION['user_id'] = $customer['customer_id'];
+            $_SESSION['username'] = $customer['customer_username'];
+            $_SESSION['customer_name'] = $customer['customer_firstname'] . " " . $customer['customer_lastname'];
+            $_SESSION['customer_email'] = $customer['customer_email'];
             $_SESSION['role'] = "customer";
 
             return [
@@ -218,7 +222,6 @@ public function login($usernameOrEmail, $password) {
             ];
         }
 
-        // If not found anywhere
         return ["success" => false, "message" => "Invalid username/email or password."];
 
     } catch (Exception $e) {
@@ -228,55 +231,76 @@ public function login($usernameOrEmail, $password) {
 }
 
 
-// =================================================================
-// LOGOUT (works for both Admin + Customer)
-// =================================================================
-public function logout() {
-    $this->startSession();
+    // =================================================================
+    // LOGOUT (works for both Admin + Customer)
+    // =================================================================
+    public function logout() {
+        $this->startSession();
 
-    $_SESSION = array();
+        $_SESSION = array();
 
-    if (isset($_COOKIE[session_name()])) {
-        setcookie(session_name(), '', time() - 3600, '/');
+        if (isset($_COOKIE[session_name()])) {
+            setcookie(session_name(), '', time() - 3600, '/');
+        }
+
+        session_destroy();
     }
 
-    session_destroy();
-}
+    // =================================================================
+    // SESSION HELPERS
+    // =================================================================
+    public function isLoggedIn() {
+        $this->startSession();
+        return isset($_SESSION['role']); // admin or customer
+    }
 
+    public function getCurrentUserRole() {
+        $this->startSession();
+        return $_SESSION['role'] ?? null;
+    }
 
-// =================================================================
-// SESSION HELPERS
-// =================================================================
-public function isLoggedIn() {
+    public function getCurrentCustomerId() {
+        $this->startSession();
+        return $_SESSION['customer_id'] ?? null;
+    }
+
+    public function getCurrentCustomer() {
+        $customerId = $this->getCurrentCustomerId();
+        if (!$customerId) {
+            return null;
+        }
+
+        return $this->fetch(
+            "SELECT * FROM customers WHERE customer_id = ? LIMIT 1",
+            [$customerId]
+        );
+    }
+    public function getCurrentAdminId() {
     $this->startSession();
-    return isset($_SESSION['role']); // admin or customer
+    return $_SESSION['admin_id'] ?? null;
 }
 
-public function getCurrentUserRole() {
-    $this->startSession();
-    return $_SESSION['role'] ?? null;
-}
-
-public function getCurrentCustomerId() {
-    $this->startSession();
-    return $_SESSION['customer_id'] ?? null;
-}
-
-public function getCurrentCustomer() {
-    $customerId = $this->getCurrentCustomerId();
-    if (!$customerId) {
+public function getCurrentAdmin() {
+    $adminId = $this->getCurrentAdminId();
+    if (!$adminId) {
         return null;
     }
 
     return $this->fetch(
-        "SELECT * FROM customers WHERE customer_id = ? LIMIT 1",
-        [$customerId]
+        "SELECT * FROM admins WHERE admin_id = ? LIMIT 1",
+        [$adminId]
     );
+}
+public function requireRole($role) {
+    $this->startSession();
+    if (!isset($_SESSION['role']) || $_SESSION['role'] !== $role) {
+        header("Location: login.php");
+        exit;
+    }
 }
 
 
     // PAGINATION HELPER
-    
     public function getPaginatedResults($table, $page = 1, $limit = 10, $orderBy = "id DESC") {
         try {
             $offset = ($page - 1) * $limit;
@@ -306,283 +330,289 @@ public function getCurrentCustomer() {
     }
 
     // =================================================================
-// ORDER MANAGEMENT METHODS (Add these to your Database.php class)
-// =================================================================
+    // ORDER MANAGEMENT METHODS
+    // =================================================================
 
-public function getAllOrders($orderBy = 'created_at DESC') {
-    try {
-        return $this->select("SELECT * FROM orders ORDER BY {$orderBy}");
-    } catch (Exception $e) {
-        error_log("Get all orders error: " . $e->getMessage());
-        return [];
-    }
-}
-
-public function getOrderById($order_id) {
-    try {
-        return $this->fetch("SELECT * FROM orders WHERE id = ? LIMIT 1", [$order_id]);
-    } catch (Exception $e) {
-        error_log("Get order by ID error: " . $e->getMessage());
-        return null;
-    }
-}
-public function getOrderItems($order_id) {
-    return $this->select(
-        "SELECT * FROM order_items WHERE order_id = ?",
-        [$order_id]
-    );
-}
-public function updateOrderStatus($order_id, $status) {
-    try {
-        // Validate status
-        $validStatuses = ['processing', 'preparing', 'out for delivery', 'received', 'cancelled'];
-        if (!in_array($status, $validStatuses)) {
-            return ['success' => false, 'message' => 'Invalid status'];
-        }
-
-        $success = $this->update(
-            "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?",
-            [$status, $order_id]
-        );
-
-        if ($success) {
-            return ['success' => true, 'message' => 'Order status updated successfully'];
-        } else {
-            return ['success' => false, 'message' => 'Failed to update order status'];
-        }
-    } catch (Exception $e) {
-        error_log("Update order status error: " . $e->getMessage());
-        return ['success' => false, 'message' => 'Error updating order status'];
-    }
-}
-
-public function getOrderStatuses() {
-    return [
-        'processing' => 'Processing',
-        'preparing' => 'Preparing',
-        'out for delivery' => 'Out for Delivery',
-        'received' => 'Received',
-        'cancelled' => 'Cancelled'
-    ];
-}
-
-public function getOrdersByStatus($status) {
-    try {
-        return $this->select("SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC", [$status]);
-    } catch (Exception $e) {
-        error_log("Get orders by status error: " . $e->getMessage());
-        return [];
-    }
-}
-
-public function getOrderStats() {
-    try {
-        $stats = [];
-        $statuses = array_keys($this->getOrderStatuses());
-        
-        foreach ($statuses as $status) {
-            $count = $this->fetch("SELECT COUNT(*) as count FROM orders WHERE status = ?", [$status]);
-            $stats[$status] = $count['count'] ?? 0;
-        }
-        
-        $total = $this->fetch("SELECT COUNT(*) as total, SUM(total_amount) as revenue FROM orders");
-        $stats['total_orders'] = $total['total'] ?? 0;
-        $stats['total_revenue'] = $total['revenue'] ?? 0;
-        
-        return $stats;
-    } catch (Exception $e) {
-        error_log("Get order stats error: " . $e->getMessage());
-        return [];
-    }
-}
-
-public function searchOrders($search_term) {
-    try {
-        $search = "%{$search_term}%";
-        return $this->select(
-            "SELECT * FROM orders WHERE 
-             customer_name LIKE ? OR 
-             email LIKE ? OR 
-             id LIKE ? 
-             ORDER BY created_at DESC",
-            [$search, $search, $search]
-        );
-    } catch (Exception $e) {
-        error_log("Search orders error: " . $e->getMessage());
-        return [];
-    }
-}
-
-
-   // =================================================================
-// CUSTOMER ORDER MANAGEMENT METHODS
-// =================================================================
-
-public function getCustomerOrders($customer_id = null, $limit = null, $offset = 0) {
-    try {
-        if ($customer_id === null) {
-            $customer_id = $this->getCurrentCustomerId();
-        }
-        
-        if (!$customer_id) {
+    public function getAllOrders($orderBy = 'o_created_at DESC') {
+        try {
+            return $this->select("SELECT * FROM orders ORDER BY {$orderBy}");
+        } catch (Exception $e) {
+            error_log("Get all orders error: " . $e->getMessage());
             return [];
         }
-        
-        $sql = "SELECT * FROM orders WHERE customer_id = ? ORDER BY created_at DESC";
-        $params = [$customer_id];
-        
-        if ($limit) {
-            $sql .= " LIMIT ? OFFSET ?";
-            $params[] = (int)$limit;
-            $params[] = (int)$offset;
-        }
-        
-        return $this->select($sql, $params);
-        
-    } catch (Exception $e) {
-        error_log("Get customer orders error: " . $e->getMessage());
-        return [];
     }
-}
 
-public function getCustomerOrder($orderId, $customer_id = null) {
-    try {
-        if ($customer_id === null) {
-            $customer_id = $this->getCurrentCustomerId();
-        }
-        
-        if (!$customer_id) {
+    public function getOrderById($order_id) {
+        try {
+            return $this->fetch("SELECT * FROM orders WHERE order_id = ? LIMIT 1", [$order_id]);
+        } catch (Exception $e) {
+            error_log("Get order by ID error: " . $e->getMessage());
             return null;
         }
-        
-        $order = $this->fetch(
-            "SELECT * FROM orders WHERE id = ? AND customer_id = ? LIMIT 1",
-            [$orderId, $customer_id]
+    }
+    
+    public function getOrderItems($order_id) {
+        return $this->select(
+            "SELECT * FROM order_items WHERE order_id = ?",
+            [$order_id]
         );
-
-        if (!$order) {
-            return null;
-        }
-
-        // Format fields for UI
-        $order['formatted_status'] = $this->formatOrderStatus($order['status']);
-        $order['status_class']     = $this->getOrderStatusClass($order['status']);
-        $order['formatted_total']  = $this->formatPrice($order['total_amount']);
-        $order['formatted_date']   = $this->formatOrderDate($order['created_at']);
-
-        return $order;
-        
-    } catch (Exception $e) {
-        error_log("Get customer order error: " . $e->getMessage());
-        return null;
     }
-}
 
-public function getCustomerOrderItems($orderId, $customer_id = null) {
-    try {
-        $order = $this->getCustomerOrder($orderId, $customer_id);
-        if (!$order) {
+    public function updateOrderStatus($order_id, $status) {
+        try {
+            // Validate status
+            $validStatuses = ['processing', 'preparing', 'out for delivery', 'received', 'cancelled'];
+            if (!in_array($status, $validStatuses)) {
+                return ['success' => false, 'message' => 'Invalid status'];
+            }
+
+            $success = $this->update(
+                "UPDATE orders SET order_status = ?, updated_at = NOW() WHERE order_id = ?",
+                [$status, $order_id]
+            );
+
+            if ($success) {
+                return ['success' => true, 'message' => 'Order status updated successfully'];
+            } else {
+                return ['success' => false, 'message' => 'Failed to update order status'];
+            }
+        } catch (Exception $e) {
+            error_log("Update order status error: " . $e->getMessage());
+            return ['success' => false, 'message' => 'Error updating order status'];
+        }
+    }
+
+    public function getOrderStatuses() {
+        return [
+            'processing' => 'Processing',
+            'preparing' => 'Preparing',
+            'out for delivery' => 'Out for Delivery',
+            'received' => 'Received',
+            'cancelled' => 'Cancelled'
+        ];
+    }
+
+    public function getOrdersByStatus($status) {
+        try {
+            return $this->select("SELECT * FROM orders WHERE order_status = ? ORDER BY o_created_at DESC", [$status]);
+        } catch (Exception $e) {
+            error_log("Get orders by status error: " . $e->getMessage());
             return [];
         }
-        
-        return $this->select(
-            "SELECT oi.*, p.image, p.name 
-             FROM order_items oi 
-             LEFT JOIN perfumes p ON oi.product_id = p.id 
-             WHERE oi.order_id = ? 
-             ORDER BY oi.id",
-            [$orderId]
-        );
-        
-    } catch (Exception $e) {
-        error_log("Get customer order items error: " . $e->getMessage());
-        return [];
     }
-}
 
-public function getCustomerOrdersCount($customer_id = null) {
-    try {
-        if ($customer_id === null) {
-            $customer_id = $this->getCurrentCustomerId();
+    public function getOrderStats() {
+        try {
+            $stats = [];
+            $statuses = array_keys($this->getOrderStatuses()); 
+
+            foreach ($statuses as $status) {
+                $row = $this->fetch("SELECT COUNT(order_id) AS order_count FROM orders WHERE order_status = ?",[$status]);
+                $stats[$status] = $row['order_count'] ?? 0;
+            }
+
+            // overall stats
+            $row = $this->fetch("SELECT COUNT(order_id) AS total_orders, SUM(total_amount) AS total_revenue FROM orders");
+
+            $stats['total_orders'] = $row['total_orders'] ?? 0;
+            $stats['total_revenue'] = $row['total_revenue'] ?? 0;
+
+            return $stats;
+        } catch (Exception $e) {
+            error_log("Get order stats error: " . $e->getMessage());
+            return [];
         }
-        
-        if (!$customer_id) {
+    }
+
+    public function searchOrders($search_term) {
+        try {
+            $search = "%{$search_term}%";
+            return $this->select(
+                "SELECT o.order_id, o.order_status, o.total_amount, o.o_created_at, c.customer_firstname, c.customer_lastname, c.customer_email
+                 FROM orders o
+                 JOIN customers c ON o.customer_id = c.customer_id
+                 WHERE c.customer_firstname LIKE ? 
+                    OR c.customer_lastname LIKE ?
+                    OR c.customer_email LIKE ?
+                    OR o.order_id LIKE ?
+                 ORDER BY o.o_created_at DESC",
+                [$search, $search, $search, $search]
+            );
+        } catch (Exception $e) {
+            error_log('Search orders error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    // =================================================================
+    // CUSTOMER ORDER MANAGEMENT METHODS
+    // =================================================================
+
+    public function getCustomerOrders($customer_id = null, $limit = null, $offset = 0) {
+        try {
+            if ($customer_id === null) {
+                $customer_id = $this->getCurrentCustomerId();
+            }
+            
+            if (!$customer_id) {
+                return [];
+            }
+            
+            $sql = "SELECT * FROM orders WHERE customer_id = ? ORDER BY o_created_at DESC";
+            $params = [$customer_id];
+            
+            if ($limit) {
+                $sql .= " LIMIT ? OFFSET ?";
+                $params[] = (int)$limit;
+                $params[] = (int)$offset;
+            }
+            
+            return $this->select($sql, $params);
+            
+        } catch (Exception $e) {
+            error_log("Get customer orders error: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function getCustomerOrder($orderId, $customer_id = null) {
+        try {
+            if ($customer_id === null) {
+                $customer_id = $this->getCurrentCustomerId();
+            }
+            
+            if (!$customer_id) {
+                return null;
+            }
+            
+            $order = $this->fetch(
+                "SELECT * FROM orders WHERE order_id = ? AND customer_id = ? LIMIT 1",
+                [$orderId, $customer_id]
+            );
+
+            if (!$order) {
+                return null;
+            }
+
+            // Format fields for UI
+            $order['formatted_status'] = $this->formatOrderStatus($order['order_status']);
+            $order['status_class']     = $this->getOrderStatusClass($order['order_status']);
+            $order['formatted_total']  = $this->formatPrice($order['total_amount']);
+            $order['formatted_date']   = $this->formatOrderDate($order['o_created_at']);
+
+            return $order;
+            
+        } catch (Exception $e) {
+            error_log("Get customer order error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function getCustomerOrderItems($orderId, $customer_id = null) {
+        try {
+            $order = $this->getCustomerOrder($orderId, $customer_id);
+            if (!$order) {
+                return [];
+            }
+            
+            return $this->select(
+                "SELECT oi.order_item_id, oi.order_id, oi.perfume_id, oi.order_quantity, oi.order_price, p.perfume_name, p.image
+                 FROM order_items oi 
+                 LEFT JOIN perfumes p ON oi.perfume_id = p.perfume_id 
+                 WHERE oi.order_id = ? 
+                 ORDER BY oi.order_item_id",
+                [$orderId]
+            );
+            
+        } catch (Exception $e) {
+            error_log("Get customer order items error: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function getCustomerOrdersCount($customer_id = null) {
+        try {
+            if ($customer_id === null) {
+                $customer_id = $this->getCurrentCustomerId();
+            }
+            
+            if (!$customer_id) {
+                return 0;
+            }
+            
+            $result = $this->fetch(
+                "SELECT COUNT(*) as total FROM orders WHERE customer_id = ?",
+                [$customer_id]
+            );
+
+            return $result ? (int)$result['total'] : 0;
+
+        } catch (Exception $e) {
+            error_log("Get customer orders count error: " . $e->getMessage());
             return 0;
         }
-        
-        $result = $this->fetch(
-            "SELECT COUNT(*) as total FROM orders WHERE customer_id = ?",
-            [$customer_id]
-        );
-        
-        return $result ? (int)$result['total'] : 0;
-        
-    } catch (Exception $e) {
-        error_log("Get customer orders count error: " . $e->getMessage());
-        return 0;
     }
-}
 
-public function getCustomerOrdersByStatus($status, $customer_id = null) {
-    try {
-        if ($customer_id === null) {
-            $customer_id = $this->getCurrentCustomerId();
-        }
-        
-        if (!$customer_id) {
+    public function getCustomerOrdersByStatus($status, $customer_id = null) {
+        try {
+            if ($customer_id === null) {
+                $customer_id = $this->getCurrentCustomerId();
+            }
+            
+            if (!$customer_id) {
+                return [];
+            }
+            
+            return $this->select(
+                "SELECT * FROM orders WHERE customer_id = ? AND order_status = ? ORDER BY o_created_at DESC",
+                [$customer_id, $status]
+            );
+            
+        } catch (Exception $e) {
+            error_log("Get customer orders by status error: " . $e->getMessage());
             return [];
         }
-        
-        return $this->select(
-            "SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC",
-            [$customer_id, $status]
-        );
-        
-    } catch (Exception $e) {
-        error_log("Get customer orders by status error: " . $e->getMessage());
-        return [];
     }
-}
 
-public function getCustomerRecentOrders($limit = 5, $customer_id = null) {
-    return $this->getCustomerOrders($customer_id, $limit);
-}
+    public function getCustomerRecentOrders($limit = 5, $customer_id = null) {
+        return $this->getCustomerOrders($customer_id, $limit);
+    }
 
-// =================================================================
-// ORDER HELPER FORMATTING METHODS
-// =================================================================
+    // =================================================================
+    // ORDER HELPER FORMATTING METHODS
+    // =================================================================
 
-public function formatOrderStatus($status) {
-    $map = [
-        'pending'    => 'Pending',
-        'processing' => 'Processing',
-        'shipped'    => 'Shipped',
-        'delivered'  => 'Delivered',
-        'completed'  => 'Completed',
-        'cancelled'  => 'Cancelled'
-    ];
-    return $map[strtolower($status)] ?? ucfirst($status);
-}
+    public function formatOrderStatus($status) {
+        $map = [
+            'pending'    => 'Pending',
+            'processing' => 'Processing',
+            'preparing' => 'Preparing',
+            'out for delivery' => 'Out for Delivery',
+            'received'  => 'Received',
+            'cancelled'  => 'Cancelled'
+        ];
+        return $map[strtolower($status)] ?? ucfirst($status);
+    }
 
-public function getOrderStatusClass($status) {
-    $map = [
-        'pending'    => 'status-pending',
-        'processing' => 'status-processing',
-        'shipped'    => 'status-shipped',
-        'delivered'  => 'status-delivered',
-        'completed'  => 'status-completed',
-        'cancelled'  => 'status-cancelled'
-    ];
-    return $map[strtolower($status)] ?? '';
-}
+    public function getOrderStatusClass($status) {
+        $map = [
+            'pending'    => 'status-pending',
+            'processing' => 'status-processing',
+            'preparing' => 'status-preparing',
+            'out for delivery' => 'status-shipping',
+            'received'  => 'status-delivered',
+            'cancelled'  => 'status-cancelled'
+        ];
+        return $map[strtolower($status)] ?? '';
+    }
 
-public function formatPrice($amount) {
-    return "₱" . number_format((float)$amount, 2);
-}
+    public function formatPrice($amount) {
+        return "₱" . number_format((float)$amount, 2);
+    }
 
-public function formatOrderDate($date) {
-    return date("M d, Y h:i A", strtotime($date));
-}
+    public function formatOrderDate($date) {
+        return date("M d, Y h:i A", strtotime($date));
+    }
 
     // =================================================================
     // CUSTOMER PROFILE MANAGEMENT METHODS
@@ -590,7 +620,6 @@ public function formatOrderDate($date) {
     
     public function updateCustomerProfile($data, $customer_id = null) {
         try {
-            // If no customer_id provided, use current logged-in customer
             if ($customer_id === null) {
                 $customer_id = $this->getCurrentCustomerId();
             }
@@ -599,45 +628,40 @@ public function formatOrderDate($date) {
                 return ['success' => false, 'message' => 'Please login first.'];
             }
             
-            // Validate required fields
-            $requiredFields = ['firstname', 'lastname', 'username'];
+            $requiredFields = ['customer_firstname', 'customer_lastname', 'customer_username'];
             foreach ($requiredFields as $field) {
                 if (empty(trim($data[$field] ?? ''))) {
                     return ['success' => false, 'message' => ucfirst($field) . ' is required.'];
                 }
             }
             
-            // Validate email format
-            if (!filter_var($data['username'], FILTER_VALIDATE_EMAIL)) {
+            if (!filter_var($data['customer_username'], FILTER_VALIDATE_EMAIL)) {
                 return ['success' => false, 'message' => 'Please enter a valid email address.'];
             }
             
-            // Check if username is taken by another user
             $existing = $this->fetch(
-                "SELECT id FROM users WHERE username = ? AND id != ? LIMIT 1",
-                [$data['username'], $customer_id]
+                "SELECT customer_id FROM customers WHERE customer_username = ? AND customer_id != ? LIMIT 1",
+                [$data['customer_username'], $customer_id]
             );
             
             if ($existing) {
                 return ['success' => false, 'message' => 'Email address already exists.'];
             }
             
-            // Update profile
             $rowsAffected = $this->update(
-                "UPDATE users SET firstname = ?, lastname = ?, username = ? WHERE id = ? AND role = 'customer'",
+                "UPDATE customers SET customer_firstname = ?, customer_lastname = ?, customer_username = ? WHERE customer_id = ?",
                 [
-                    trim($data['firstname']),
-                    trim($data['lastname']),
-                    trim($data['username']),
+                    trim($data['customer_firstname']),
+                    trim($data['customer_lastname']),
+                    trim($data['customer_username']),
                     $customer_id
                 ]
             );
             
             if ($rowsAffected > 0) {
-                // Update session data if it's current user
                 if ($customer_id == $this->getCurrentCustomerId()) {
-                    $_SESSION['customer_username'] = $data['username'];
-                    $_SESSION['customer_name'] = $data['firstname'] . ' ' . $data['lastname'];
+                    $_SESSION['customer_username'] = $data['customer_username'];
+                    $_SESSION['customer_name'] = $data['customer_firstname'] . ' ' . $data['customer_lastname'];
                 }
                 
                 return ['success' => true, 'message' => 'Profile updated successfully!'];
@@ -653,7 +677,6 @@ public function formatOrderDate($date) {
     
     public function changeCustomerPassword($currentPassword, $newPassword, $confirmPassword, $customer_id = null) {
         try {
-            // If no customer_id provided, use current logged-in customer
             if ($customer_id === null) {
                 $customer_id = $this->getCurrentCustomerId();
             }
@@ -662,7 +685,6 @@ public function formatOrderDate($date) {
                 return ['success' => false, 'message' => 'Please login first.'];
             }
             
-            // Validate inputs
             if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
                 return ['success' => false, 'message' => 'All password fields are required.'];
             }
@@ -675,20 +697,18 @@ public function formatOrderDate($date) {
                 return ['success' => false, 'message' => 'Password must be at least 6 characters long.'];
             }
             
-            // Verify current password
             $customer = $this->fetch(
-                "SELECT password FROM users WHERE id = ? AND role = 'customer' LIMIT 1",
+                "SELECT customer_password FROM customers WHERE customer_id = ? LIMIT 1",
                 [$customer_id]
             );
             
-            if (!$customer || !password_verify($currentPassword, $customer['password'])) {
+            if (!$customer || !password_verify($currentPassword, $customer['customer_password'])) {
                 return ['success' => false, 'message' => 'Current password is incorrect.'];
             }
             
-            // Update password
             $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
             $rowsAffected = $this->update(
-                "UPDATE users SET password = ? WHERE id = ? AND role = 'customer'",
+                "UPDATE customers SET customer_password = ? WHERE customer_id = ?",
                 [$hashedPassword, $customer_id]
             );
             
@@ -705,17 +725,13 @@ public function formatOrderDate($date) {
     }
 
     // =================================================================
-    // UTILITY/FORMATTING METHODS
-    // =================================================================
-  
-    // =================================================================
     // DASHBOARD HELPERS
     // =================================================================
     
     public function getProductsCount() {
         try {
-            $result = $this->fetch("SELECT COUNT(*) as cnt FROM perfumes");
-            return $result ? (int)$result['cnt'] : 0;
+            $result = $this->fetch("SELECT COUNT(perfume_id) as total FROM perfumes");
+            return $result ? (int)$result['total'] : 0;
         } catch (Exception $e) {
             return 0;
         }
@@ -723,9 +739,9 @@ public function formatOrderDate($date) {
     
     public function getUsersCount() {
         try {
-            $tableExists = $this->fetch("SHOW TABLES LIKE 'users'");
+            $tableExists = $this->fetch("SHOW TABLES LIKE 'customers'");
             if ($tableExists) {
-                $result = $this->fetch("SELECT COUNT(*) as cnt FROM users");
+                $result = $this->fetch("SELECT COUNT(*) as cnt FROM customers");
                 return $result ? (int)$result['cnt'] : 0;
             }
         } catch (Exception $e) {
@@ -753,7 +769,6 @@ public function formatOrderDate($date) {
     
     public function getCustomerDashboardData($customer_id = null) {
         try {
-            // If no customer_id provided, use current logged-in customer
             if ($customer_id === null) {
                 $customer_id = $this->getCurrentCustomerId();
             }
@@ -782,94 +797,68 @@ public function formatOrderDate($date) {
     // =================================================================
     
     public function getProductById($id) {
-        return $this->fetch("SELECT * FROM perfumes WHERE id = ?", [$id]);
+        return $this->fetch("SELECT * FROM perfumes WHERE perfume_id = ?", [$id]);
     }
-    public function getPerfumes($gender_filter = null, $search_query = null) {
+    
+    public function getPerfumes($sex_filter = null, $search_query = null) {
         $sql = "SELECT * FROM perfumes WHERE 1";
         $params = [];
 
-        if ($gender_filter === 'Male' || $gender_filter === 'Female') {
-            $sql .= " AND gender = ?";
-            $params[] = $gender_filter;
+        if ($sex_filter === 'Male' || $sex_filter === 'Female') {
+            $sql .= " AND sex = ?";
+            $params[] = $sex_filter;
         }
 
         if (!empty($search_query)) {
-            $sql .= " AND (name LIKE ? OR description LIKE ? OR price LIKE ?)";
+            $sql .= " AND (perfume_name LIKE ? OR perfume_descr LIKE ? OR perfume_price LIKE ?)";
             $search_like = "%" . $search_query . "%";
             $params[] = $search_like;
             $params[] = $search_like;
             $params[] = $search_like;
         }
 
+        $sql .= " ORDER BY perfume_id DESC";
+
         return $this->select($sql, $params);
     }
     
     public function addProduct($data, $files) {
-        $name = $data['name'];
-        $brand = $data['brand'];
-        $price = $data['price'];
-        $gender = $data['gender'];
+        $name = $data['perfume_name'];
+        $brand = $data['perfume_brand'];
+        $price = $data['perfume_price'];
+        $sex = $data['sex'];
         $stock = $data['stock'] ?? 0;
-        $description = $data['description'] ?? '';
-        $ml_size = $data['ml_size'] ?? '';
-
-        // Handle image uploads
-        $image = $this->handleImageUpload($files, 'image');
-        $image2 = $this->handleImageUpload($files, 'image2');
+        $description = $data['perfume_desc'] ?? '';
+        $perfume_ml = $data['perfume_ml'] ?? '';
+        $scent_family = $data['scent_family'] ?? '';
+        $admin_id = $data['admin_id'] ?? null;
 
         return $this->insert(
-            "INSERT INTO perfumes (name, brand, price, gender, image, image2, description, stock, ml_size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
-            [$name, $brand, $price, $gender, $image, $image2, $description, $stock, $ml_size]
+            "INSERT INTO perfumes (admin_id, perfume_name, perfume_brand, perfume_price, perfume_ml, sex, perfume_descr, stock, scent_family, p_created_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+            [$admin_id, $name, $brand, $price, $perfume_ml, $sex, $description, $stock, $scent_family]
         );
     }
     
     public function updateProduct($data, $files) {
-        $id = intval($data['id']);
-        $name = $data['name'];
-        $brand = $data['brand'];
-        $price = $data['price'];
-        $gender = $data['gender'];
+        $id = intval($data['perfume_id']);
+        $name = $data['perfume_name'];
+        $brand = $data['perfume_brand'];
+        $price = $data['perfume_price'];
+        $sex = $data['sex'];
         $stock = $data['stock'];
-        $description = $data['description'];
-        $ml_size = $data['ml_size'];
+        $description = $data['perfume_desc'];
+        $perfume_ml = $data['perfume_ml'];
+        $scent_family = $data['scent_family'] ?? '';
 
-        $params = [$name, $brand, $price, $gender, $stock, $description, $ml_size];
-        $updateQuery = "UPDATE perfumes SET name = ?, brand = ?, price = ?, gender = ?, stock = ?, description = ?, ml_size = ?";
-
-        // Handle image updates
-        $newImage = $this->handleImageUpload($files, 'image');
-        if ($newImage) {
-            $updateQuery .= ", image = ?";
-            $params[] = $newImage;
-        }
-        
-        $newImage2 = $this->handleImageUpload($files, 'image2');
-        if ($newImage2) {
-            $updateQuery .= ", image2 = ?";
-            $params[] = $newImage2;
-        }
-
-        $updateQuery .= " WHERE id = ?";
-        $params[] = $id;
+        $params = [$name, $brand, $price, $sex, $stock, $description, $perfume_ml, $scent_family, $id];
+        $updateQuery = "UPDATE perfumes SET perfume_name = ?, perfume_brand = ?, perfume_price = ?, sex = ?, stock = ?, perfume_descr = ?, perfume_ml = ?, scent_family = ? WHERE perfume_id = ?";
 
         return $this->update($updateQuery, $params);
     }
-    
-    // Helper method for image uploads
-    private function handleImageUpload($files, $fieldName) {
-        if (!empty($files[$fieldName]['name']) && $files[$fieldName]['error'] === UPLOAD_ERR_OK) {
-            $fileName = time() . '_' . basename($files[$fieldName]['name']);
-            $uploadPath = "images/" . $fileName;
-            
-            if (move_uploaded_file($files[$fieldName]['tmp_name'], $uploadPath)) {
-                return $fileName;
-            }
-        }
-        return null;
-    }
 
     // =================================================================
-    // CART MANAGEMENT METHODS (Session-based)
+    // CART MANAGEMENT METHODS (Session-based) - FIXED
     // =================================================================
     
     public function getCart() {
@@ -879,16 +868,15 @@ public function formatOrderDate($date) {
         return $_SESSION['cart'];
     }
 
-    public function addToCart($id, $name, $price, $image, $qty = 1) {
+    public function addToCart($perfume_id, $perfume_name, $perfume_price, $qty = 1) {
         $qty = max(1, (int)$qty);
 
-        if (isset($_SESSION['cart'][$id])) {
-            $_SESSION['cart'][$id]['quantity'] += $qty;
+        if (isset($_SESSION['cart'][$perfume_id])) {
+            $_SESSION['cart'][$perfume_id]['quantity'] += $qty;
         } else {
-            $_SESSION['cart'][$id] = [
-                'name' => $name,
-                'price' => (float)$price,
-                'image' => $image,
+            $_SESSION['cart'][$perfume_id] = [
+                'name' => $perfume_name,
+                'price' => (float)$perfume_price,
                 'quantity' => $qty,
             ];
         }
@@ -925,48 +913,44 @@ public function formatOrderDate($date) {
     }
 
     public function calculateGrandTotal() {
-        return $this->getCartTotals(); // Same as getCartTotals
+        return $this->getCartTotals();
     }
 
     public function getCartItems() {
-        return $this->getCart(); // Same as getCart
+        return $this->getCart();
     }
 
     // =================================================================
-    // ORDER MANAGEMENT METHODS
+    // ORDER CREATION METHODS - FIXED
     // =================================================================
     
-    public function createOrder($customerData, $cartItems, $totalAmount) {
+    public function createOrder($customerId, $cartItems, $totalAmount, $paymentMethod, $gcashProof = null) {
         try {
-            // Start transaction
             $this->connection->beginTransaction();
             
-            // Insert order
             $orderId = $this->insert(
-                "INSERT INTO orders (customer_name, customer_email, customer_phone, customer_address, total_amount, order_date, status) VALUES (?, ?, ?, ?, ?, NOW(), 'pending')",
-                [$customerData['name'], $customerData['email'], $customerData['phone'], $customerData['address'], $totalAmount]
+                "INSERT INTO orders (customer_id, payment_method, total_amount, gcash_proof, order_status, o_created_at) 
+                 VALUES (?, ?, ?, ?, 'pending', NOW())",
+                [$customerId, $paymentMethod, $totalAmount, $gcashProof]
             );
             
-            // Insert order items
-            foreach ($cartItems as $productId => $item) {
+            foreach ($cartItems as $perfumeId => $item) {
                 $this->insert(
-                    "INSERT INTO order_items (order_id, product_id, product_name, price, quantity, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
-                    [$orderId, $productId, $item['name'], $item['price'], $item['quantity'], ($item['price'] * $item['quantity'])]
+                    "INSERT INTO order_items (order_id, perfume_id, order_quantity, order_price) 
+                     VALUES (?, ?, ?, ?)",
+                    [$orderId, $perfumeId, $item['quantity'], $item['price']]
                 );
                 
-                // Update stock
                 $this->update(
-                    "UPDATE perfumes SET stock = stock - ? WHERE id = ?",
-                    [$item['quantity'], $productId]
+                    "UPDATE perfumes SET stock = stock - ? WHERE perfume_id = ?",
+                    [$item['quantity'], $perfumeId]
                 );
             }
             
-            // Commit transaction
             $this->connection->commit();
             return $orderId;
             
         } catch (Exception $e) {
-            // Rollback on error
             $this->connection->rollBack();
             throw new Exception("Order creation failed: " . $e->getMessage());
         }
@@ -979,26 +963,22 @@ public function formatOrderDate($date) {
     public function validateCheckoutData($data) {
         $errors = [];
         
-        // Required fields
-        $required = ['name', 'email', 'street', 'city', 'province', 'postal', 'payment'];
+        $required = ['customer_firstname', 'customer_lastname', 'customer_email', 'street', 'city', 'province', 'postal_code', 'payment_method'];
         foreach ($required as $field) {
             if (empty(trim($data[$field] ?? ''))) {
-                $errors[] = ucfirst($field) . " is required.";
+                $errors[] = ucfirst(str_replace('_', ' ', $field)) . " is required.";
             }
         }
         
-        // Email validation
-        if (!empty($data['email']) && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+        if (!empty($data['customer_email']) && !filter_var($data['customer_email'], FILTER_VALIDATE_EMAIL)) {
             $errors[] = "Please enter a valid email address.";
         }
         
-        // Payment method validation
-        if (!in_array($data['payment'] ?? '', ['cod', 'gcash'])) {
+        if (!in_array($data['payment_method'] ?? '', ['cod', 'gcash'])) {
             $errors[] = "Please select a valid payment method.";
         }
         
-        // GCash validation
-        if (($data['payment'] ?? '') === 'gcash') {
+        if (($data['payment_method'] ?? '') === 'gcash') {
             if (empty($_FILES['gcash_ref']['name'])) {
                 $errors[] = "Please upload proof of payment for GCash.";
             } elseif ($_FILES['gcash_ref']['error'] !== UPLOAD_ERR_OK) {
@@ -1010,41 +990,34 @@ public function formatOrderDate($date) {
     }
     
     public function processCheckout($data, $files) {
-        // Validate cart is not empty
         if ($this->isCartEmpty()) {
             throw new Exception("Your cart is empty.");
         }
         
-        // Validate form data
         $errors = $this->validateCheckoutData($data);
         if (!empty($errors)) {
             throw new Exception(implode(' ', $errors));
         }
         
-        // Get cart data
         $cartItems = $this->getCartItems();
         $grandTotal = $this->calculateGrandTotal();
         
-        // Handle GCash proof upload
         $proofFileName = null;
-        if ($data['payment'] === 'gcash' && !empty($files['gcash_ref']['name'])) {
+        if ($data['payment_method'] === 'gcash' && !empty($files['gcash_ref']['name'])) {
             $proofFileName = $this->handleProofUpload($files['gcash_ref']);
         }
         
-        // Prepare customer data
         $customerData = [
             'name' => trim($data['name']),
             'email' => trim($data['email']),
             'phone' => trim($data['phone'] ?? ''),
             'address' => $this->formatAddress($data),
-            'payment_method' => $data['payment'],
+            'payment_method' => $data['payment_method'],
             'proof_of_payment' => $proofFileName
         ];
         
-        // Create order
         $orderId = $this->createOrderWithDetails($customerData, $cartItems, $grandTotal);
         
-        // Clear cart after successful order
         $this->clearCart();
         
         return $orderId;
@@ -1052,14 +1025,15 @@ public function formatOrderDate($date) {
     
     private function formatAddress($data) {
         return trim($data['street']) . ', ' . 
+               trim($data['barangay'] ?? '') . ', ' .
                trim($data['city']) . ', ' . 
                trim($data['province']) . ' ' . 
-               trim($data['postal']);
+               trim($data['postal_code']);
     }
     
     private function handleProofUpload($file) {
         $allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-        $maxSize = 5 * 1024 * 1024; // 5MB
+        $maxSize = 5 * 1024 * 1024;
         
         if (!in_array($file['type'], $allowedTypes)) {
             throw new Exception("Only JPEG, PNG files are allowed for proof of payment.");
@@ -1072,7 +1046,6 @@ public function formatOrderDate($date) {
         $fileName = 'proof_' . time() . '_' . uniqid() . '.' . pathinfo($file['name'], PATHINFO_EXTENSION);
         $uploadPath = "uploads/proofs/" . $fileName;
         
-        // Create directory if it doesn't exist
         if (!file_exists("uploads/proofs/")) {
             mkdir("uploads/proofs/", 0755, true);
         }
@@ -1086,68 +1059,145 @@ public function formatOrderDate($date) {
     
     private function createOrderWithDetails($customerData, $cartItems, $totalAmount) {
         try {
-            // Start transaction
             $this->connection->beginTransaction();
             
-            // Insert order with additional fields
+            $customerId = $this->getCurrentCustomerId();
+            if (!$customerId) {
+                throw new Exception("User not logged in");
+            }
+            
             $orderId = $this->insert(
-                "INSERT INTO orders (customer_name, customer_email, customer_phone, customer_address, total_amount, payment_method, proof_of_payment, order_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 'pending')",
+                "INSERT INTO orders (customer_id, payment_method, total_amount, gcash_proof, order_status, o_created_at) 
+                 VALUES (?, ?, ?, ?, 'pending', NOW())",
                 [
-                    $customerData['name'],
-                    $customerData['email'], 
-                    $customerData['phone'],
-                    $customerData['address'],
-                    $totalAmount,
+                    $customerId,
                     $customerData['payment_method'],
+                    $totalAmount,
                     $customerData['proof_of_payment']
                 ]
             );
             
-            // Insert order items and update stock
-            foreach ($cartItems as $productId => $item) {
-                // Check if enough stock available
-                $product = $this->getProductById($productId);
-                if (!$product || $product['stock'] < $item['quantity']) {
-                    throw new Exception("Insufficient stock for " . $item['name']);
+            foreach ($cartItems as $perfumeId => $item) {
+                $product = $this->getProductById($perfumeId);
+                if (!$product) {
+                    throw new Exception("Product not found: " . $item['name']);
                 }
                 
+                $currentStock = $product['stock'] ?? 0;
+                if ($currentStock < $item['quantity']) {
+                    throw new Exception("Insufficient stock for " . $item['name']);
+                }
+            
                 $this->insert(
-                    "INSERT INTO order_items (order_id, product_id, product_name, price, quantity, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
-                    [$orderId, $productId, $item['name'], $item['price'], $item['quantity'], ($item['price'] * $item['quantity'])]
+                    "INSERT INTO order_items (order_id, perfume_id, order_quantity, order_price) 
+                     VALUES (?, ?, ?, ?)",
+                    [$orderId, $perfumeId, $item['quantity'], $item['price']]
                 );
                 
-                // Update stock
                 $this->update(
-                    "UPDATE perfumes SET stock = stock - ? WHERE id = ?",
-                    [$item['quantity'], $productId]
+                    "UPDATE perfumes SET stock = stock - ? WHERE perfume_id = ?",
+                    [$item['quantity'], $perfumeId]
                 );
             }
             
-            // Commit transaction
             $this->connection->commit();
             return $orderId;
             
         } catch (Exception $e) {
-            // Rollback on error
             $this->connection->rollBack();
             throw new Exception("Order creation failed: " . $e->getMessage());
         }
     }
     
     public function isUserLoggedIn() {
-        return isset($_SESSION['customer_id']) || isset($_SESSION['user_id']);
+        return isset($_SESSION['customer_id']) || isset($_SESSION['admin_id']);
     }
     
     public function getCheckoutSummary() {
         if ($this->isCartEmpty()) {
             return null;
         }
+        $cartItems = $_SESSION['cart'];
         
         return [
-            'items' => $this->getCartItems(),
+            'items' => $cartItems,
             'total' => $this->calculateGrandTotal(),
-            'item_count' => array_sum(array_column($this->getCartItems(), 'quantity'))
+            'item_count' => array_sum(array_column($cartItems, 'quantity'))
         ];
     }
+    // =================================================================
+// CONTACT MESSAGE MANAGEMENT METHODS
+// Add these methods to your Database class in database.php
+// =================================================================
+
+public function saveContactMessage($name, $email, $message) {
+    try {
+        $insertId = $this->insert(
+            "INSERT INTO contact_messages (name, email, message, created_at, status) 
+             VALUES (?, ?, ?, NOW(), 'unread')",
+            [$name, $email, $message]
+        );
+        
+        return $insertId ? true : false;
+        
+    } catch (Exception $e) {
+        error_log("Save contact message error: " . $e->getMessage());
+        return false;
+    }
+}
+
+public function getAllContactMessages($orderBy = 'created_at DESC') {
+    try {
+        return $this->select("SELECT * FROM contact_messages ORDER BY {$orderBy}");
+    } catch (Exception $e) {
+        error_log("Get contact messages error: " . $e->getMessage());
+        return [];
+    }
+}
+
+public function getContactMessageById($id) {
+    try {
+        return $this->fetch("SELECT * FROM contact_messages WHERE id = ? LIMIT 1", [$id]);
+    } catch (Exception $e) {
+        error_log("Get contact message error: " . $e->getMessage());
+        return null;
+    }
+}
+
+public function updateContactMessageStatus($id, $status = 'read') {
+    try {
+        $validStatuses = ['read', 'unread', 'replied'];
+        if (!in_array($status, $validStatuses)) {
+            return false;
+        }
+        
+        return $this->update(
+            "UPDATE contact_messages SET status = ? WHERE id = ?",
+            [$status, $id]
+        );
+    } catch (Exception $e) {
+        error_log("Update contact status error: " . $e->getMessage());
+        return false;
+    }
+}
+
+public function deleteContactMessage($id) {
+    try {
+        return $this->delete("DELETE FROM contact_messages WHERE id = ?", [$id]);
+    } catch (Exception $e) {
+        error_log("Delete contact message error: " . $e->getMessage());
+        return false;
+    }
+}
+
+public function getUnreadContactCount() {
+    try {
+        $result = $this->fetch("SELECT COUNT(*) as total FROM contact_messages WHERE status = 'unread'");
+        return $result ? (int)$result['total'] : 0;
+    } catch (Exception $e) {
+        error_log("Get unread contact count error: " . $e->getMessage());
+        return 0;
+    }
+}
 }
 ?>
