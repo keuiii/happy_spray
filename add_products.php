@@ -128,9 +128,19 @@ body {
 }
 
 .sidebar-header {
-    padding: 35px 30px;
+    padding: 20px 20px;
     border-bottom: 1px solid #e8e8e8;
     background: #fff;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.sidebar-header img {
+    max-width: 120px;
+    height: auto;
+    display: block;
 }
 
 .sidebar-header h2 {
@@ -147,7 +157,7 @@ body {
 }
 
 .menu-item {
-    padding: 16px 30px;
+    padding: 16px 15px;
     color: #666;
     text-decoration: none;
     display: flex;
@@ -156,8 +166,9 @@ body {
     transition: all 0.3s;
     font-weight: 500;
     font-size: 15px;
-    margin: 4px 15px;
+    margin: 4px 8px;
     border-radius: 10px;
+    position: relative;
 }
 
 .menu-item::before {
@@ -179,15 +190,32 @@ body {
     content: '●';
 }
 
+.unread-badge {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #ef4444;
+    color: #fff;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+}
+
 .sidebar-footer {
     position: absolute;
     bottom: 30px;
     width: 100%;
-    padding: 0 15px;
+    padding: 0 8px;
 }
 
 .logout-item {
-    padding: 16px 30px;
+    padding: 16px 15px;
     color: #d32f2f;
     text-decoration: none;
     display: flex;
@@ -431,7 +459,7 @@ body {
 
 <div class="sidebar">
     <div class="sidebar-header">
-        <h2>Happy Sprays</h2>
+        <img src="images/logoo.png" alt="Happy Sprays">
     </div>
     <nav class="sidebar-menu">
         <a href="admin_dashboard.php" class="menu-item">Dashboard</a>
@@ -441,7 +469,14 @@ body {
         <a href="admin_contact_messages.php" class="menu-item">Messages</a>
     </nav>
     <div class="sidebar-footer">
-        <a href="customer_logout.php" class="logout-item">🚪 Logout</a>
+        <a href="customer_logout.php" class="logout-item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            Log out
+        </a>
     </div>
 </div>
 

@@ -138,42 +138,64 @@ body {
   cursor:pointer;
 }
 
+/* Footer */
 footer {
-    background: #e9e9e9;
-    border-top: 1px solid #eee;
+    background: #000;
+    border-top: 1px solid #000;
     padding: 40px 20px;
     text-align: center;
     font-size: 14px;
-    color: #555;
+    color: #fff;
     margin-top: 60px;
 }
+
 .footer-columns {
     display: flex;
     justify-content: center;
-    gap: 100px;
-    margin-bottom: 20px;
+    gap: 80px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
 }
+
 .footer-columns h4 {
-    font-size: 16px;
-    margin-bottom: 10px;
-    font-weight: bold;
-    color: #000;
+    font-size: 14px;
+    margin-bottom: 12px;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }
+
 .footer-columns a {
     display: block;
     text-decoration: none;
-    color: #555;
-    margin: 5px 0;
+    color: #ccc;
+    margin: 6px 0;
+    font-size: 13px;
+    transition: color 0.3s;
 }
-.footer-columns a:hover { color: #000; }
-.social-icons { margin-top: 15px; }
+
+.footer-columns a:hover { color: #fff; }
+
+.social-icons { 
+    margin-top: 20px; 
+}
+
 .social-icons a {
-    margin: 0 8px;
-    color: #555;
+    margin: 0 10px;
+    color: #ccc;
     text-decoration: none;
-    font-size: 18px;
+    font-size: 14px;
+    transition: color 0.3s;
 }
-.social-icons a:hover { color: #000; }
+
+.social-icons a:hover { color: #fff; }
+
+footer p {
+    margin-top: 20px;
+    color: #999;
+    font-size: 12px;
+}
 </style>
 </head>
 <body>

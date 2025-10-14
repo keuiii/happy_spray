@@ -6,10 +6,10 @@ class Database {
     private $connection;
     
     // Database configuration
-    private $host = 'mysql.hostinger.com';
-    private $database = 'u425676266_happy_sprays';
-    private $username = 'u425676266_jows';
-    private $password = 'GIAjanda9';
+    private $host = 'localhost';
+    private $database = 'happy_sprays';
+    private $username = 'root';
+    private $password = '';
     private $charset = 'utf8mb4';
     
     // Private constructor to prevent direct instantiation
@@ -78,15 +78,24 @@ class Database {
         }
     }
     
-    public function insert($query, $params = []) {
-        try {
-            $stmt = $this->connection->prepare($query);
-            $stmt->execute($params);
+public function insert($query, $params = []) {
+    try {
+        $stmt = $this->connection->prepare($query);
+        if ($stmt->execute($params)) {
             return $this->connection->lastInsertId();
-        } catch (PDOException $e) {
-            throw new Exception("Insert query failed: " . $e->getMessage());
+        } else {
+            $errorInfo = $stmt->errorInfo();
+            error_log("Database insert failed: " . implode(" | ", $errorInfo));
+            return false;
         }
+    } catch (PDOException $e) {
+        error_log("Database insert exception: " . $e->getMessage());
+        return false;
     }
+}
+
+
+
     
     public function update($query, $params = []) {
         try {
@@ -108,10 +117,19 @@ class Database {
         }
     }
     
-    public function getAllCustomers() {
-        return $this->select("SELECT customer_id, customer_firstname, customer_lastname, customer_username, customer_email, is_verified, cs_created_at 
+    public function getAllCustomers($limit = null, $offset = 0) {
+        $sql = "SELECT customer_id, customer_firstname, customer_lastname, customer_username, customer_email, is_verified, cs_created_at 
                           FROM customers 
-                          ORDER BY cs_created_at DESC");
+                          ORDER BY cs_created_at DESC";
+        $params = [];
+        
+        if ($limit !== null) {
+            $sql .= " LIMIT ? OFFSET ?";
+            $params[] = (int)$limit;
+            $params[] = (int)$offset;
+        }
+        
+        return $this->select($sql, $params);
     }
     
     // Helper method to delete a record safely by ID
@@ -167,6 +185,10 @@ class Database {
             return "Registration failed. Please try again.";
         }
     }
+    public function getCurrentUserId() {
+        $this->startSession();
+        return $_SESSION['user_id'] ?? null;
+        }
 
     // =================================================================
     // UNIFIED LOGIN (Admins + Customers)
@@ -275,6 +297,93 @@ class Database {
             [$customerId]
         );
     }
+
+public function updateCustomerProfile($firstname, $lastname, $email, $contact, $street, $barangay, $city, $province, $postal_code) {
+    $customerId = $this->getCurrentCustomerId();
+    if (!$customerId) {
+        return false;
+    }
+
+    // Check if email already taken
+    $stmt = $this->connection->prepare("SELECT customer_id FROM customers WHERE customer_email = ? AND customer_id != ? LIMIT 1");
+    $stmt->execute([$email, $customerId]);
+    $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($existing) {
+        return false;
+    }
+
+    // Update
+    $stmt = $this->connection->prepare("
+        UPDATE customers 
+        SET customer_firstname = ?, 
+            customer_lastname = ?, 
+            customer_email = ?, 
+            customer_contact = ?, 
+            customer_street = ?, 
+            customer_barangay = ?, 
+            customer_city = ?, 
+            customer_province = ?, 
+            customer_postal_code = ?
+        WHERE customer_id = ?
+    ");
+    return $stmt->execute([$firstname, $lastname, $email, $contact, $street, $barangay, $city, $province, $postal_code, $customerId]);
+}
+
+public function updateProfilePicture($file_path, $customerId)
+{
+    try {
+        $stmt = $this->connection->prepare("
+            UPDATE customers 
+            SET profile_picture = ? 
+            WHERE customer_id = ?
+        ");
+        return $stmt->execute([$file_path, $customerId]);
+    } catch (PDOException $e) {
+        error_log("Error updating profile picture: " . $e->getMessage());
+        return false;
+    }
+}
+
+
+public function changeCustomerPassword($current_password, $new_password)
+{
+    $customerId = $this->getCurrentCustomerId();
+    if (!$customerId) {
+        return false;
+    }
+
+    // Get current password hash
+    $stmt = $this->conn->prepare("
+        SELECT customer_password 
+        FROM customers 
+        WHERE customer_id = ? 
+        LIMIT 1
+    ");
+    $stmt->execute([$customerId]);
+    $customer = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$customer) {
+        return false;
+    }
+
+    // Verify current password
+    if (!password_verify($current_password, $customer['customer_password'])) {
+        return false; // Current password is incorrect
+    }
+
+    // Hash new password
+    $new_password_hash = password_hash($new_password, PASSWORD_DEFAULT);
+
+    // Update password
+    $stmt = $this->conn->prepare("
+        UPDATE customers 
+        SET customer_password = ? 
+        WHERE customer_id = ?
+    ");
+    return $stmt->execute([$new_password_hash, $customerId]);
+}
+
+
     public function getCurrentAdminId() {
     $this->startSession();
     return $_SESSION['admin_id'] ?? null;
@@ -333,9 +442,18 @@ public function requireRole($role) {
     // ORDER MANAGEMENT METHODS
     // =================================================================
 
-    public function getAllOrders($orderBy = 'o_created_at DESC') {
+    public function getAllOrders($limit = null, $offset = 0, $orderBy = 'o_created_at DESC') {
         try {
-            return $this->select("SELECT * FROM orders ORDER BY {$orderBy}");
+            $sql = "SELECT * FROM orders ORDER BY {$orderBy}";
+            $params = [];
+            
+            if ($limit !== null) {
+                $sql .= " LIMIT ? OFFSET ?";
+                $params[] = (int)$limit;
+                $params[] = (int)$offset;
+            }
+            
+            return $this->select($sql, $params);
         } catch (Exception $e) {
             error_log("Get all orders error: " . $e->getMessage());
             return [];
@@ -358,34 +476,54 @@ public function requireRole($role) {
         );
     }
 
-    public function updateOrderStatus($order_id, $status) {
-        try {
-            // Validate status
-            $validStatuses = ['processing', 'preparing', 'out for delivery', 'received', 'cancelled'];
-            if (!in_array($status, $validStatuses)) {
-                return ['success' => false, 'message' => 'Invalid status'];
-            }
-
-            $success = $this->update(
-                "UPDATE orders SET order_status = ?, updated_at = NOW() WHERE order_id = ?",
-                [$status, $order_id]
-            );
-
-            if ($success) {
-                return ['success' => true, 'message' => 'Order status updated successfully'];
-            } else {
-                return ['success' => false, 'message' => 'Failed to update order status'];
-            }
-        } catch (Exception $e) {
-            error_log("Update order status error: " . $e->getMessage());
-            return ['success' => false, 'message' => 'Error updating order status'];
-        }
+    // Method 1: Add fetchAll method (if not exists)
+public function fetchAll($query, $params = []) {
+    try {
+        $stmt = $this->connection->prepare($query);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        error_log("FetchAll query failed: " . $e->getMessage());
+        return [];
     }
+}
+
+// Method 2: UPDATE existing updateOrderStatus to include timestamp
+public function updateOrderStatus($order_id, $status) {
+    try {
+        $validStatuses = ['pending', 'processing', 'out for delivery', 'received', 'cancelled', 'completed'];
+        $statusLower = strtolower(trim($status));
+        
+        if (!in_array($statusLower, $validStatuses)) {
+            return ['success' => false, 'message' => 'Invalid status: ' . $status];
+        }
+
+        // Update order status
+        $stmt = $this->connection->prepare("
+            UPDATE orders 
+            SET order_status = ?
+            WHERE order_id = ?
+        ");
+        $stmt->execute([$status, $order_id]);
+
+        if ($stmt->rowCount() > 0) {
+            return ['success' => true, 'message' => 'Order status updated successfully'];
+        } else {
+            $orderExists = $this->fetch("SELECT order_id FROM orders WHERE order_id = ?", [$order_id]);
+            if (!$orderExists) {
+                return ['success' => false, 'message' => 'Order not found'];
+            }
+            return ['success' => true, 'message' => 'Order status is already set to this value'];
+        }
+    } catch (Exception $e) {
+        error_log("Update order status error: " . $e->getMessage());
+        return ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+    }
+}
 
     public function getOrderStatuses() {
         return [
             'processing' => 'Processing',
-            'preparing' => 'Preparing',
             'out for delivery' => 'Out for Delivery',
             'received' => 'Received',
             'cancelled' => 'Cancelled'
@@ -404,9 +542,11 @@ public function requireRole($role) {
     public function getOrderStats() {
         try {
             $stats = [];
-            $statuses = array_keys($this->getOrderStatuses()); 
-
-            foreach ($statuses as $status) {
+            
+            // Count all statuses that actually exist in the database
+            $allStatuses = ['pending', 'processing', 'out for delivery', 'received', 'cancelled'];
+            
+            foreach ($allStatuses as $status) {
                 $row = $this->fetch("SELECT COUNT(order_id) AS order_count FROM orders WHERE order_status = ?",[$status]);
                 $stats[$status] = $row['order_count'] ?? 0;
             }
@@ -424,20 +564,26 @@ public function requireRole($role) {
         }
     }
 
-    public function searchOrders($search_term) {
+    public function searchOrders($search_term, $limit = null, $offset = 0) {
         try {
             $search = "%{$search_term}%";
-            return $this->select(
-                "SELECT o.order_id, o.order_status, o.total_amount, o.o_created_at, c.customer_firstname, c.customer_lastname, c.customer_email
+            $sql = "SELECT o.order_id, o.customer_id, o.order_status, o.total_amount, o.o_created_at, c.customer_firstname, c.customer_lastname, c.customer_email
                  FROM orders o
                  JOIN customers c ON o.customer_id = c.customer_id
                  WHERE c.customer_firstname LIKE ? 
                     OR c.customer_lastname LIKE ?
                     OR c.customer_email LIKE ?
                     OR o.order_id LIKE ?
-                 ORDER BY o.o_created_at DESC",
-                [$search, $search, $search, $search]
-            );
+                 ORDER BY o.o_created_at DESC";
+            $params = [$search, $search, $search, $search];
+            
+            if ($limit !== null) {
+                $sql .= " LIMIT ? OFFSET ?";
+                $params[] = (int)$limit;
+                $params[] = (int)$offset;
+            }
+            
+            return $this->select($sql, $params);
         } catch (Exception $e) {
             error_log('Search orders error: ' . $e->getMessage());
             return [];
@@ -508,27 +654,28 @@ public function requireRole($role) {
         }
     }
 
-    public function getCustomerOrderItems($orderId, $customer_id = null) {
-        try {
-            $order = $this->getCustomerOrder($orderId, $customer_id);
-            if (!$order) {
-                return [];
-            }
-            
-            return $this->select(
-                "SELECT oi.order_item_id, oi.order_id, oi.perfume_id, oi.order_quantity, oi.order_price, p.perfume_name, p.image
-                 FROM order_items oi 
-                 LEFT JOIN perfumes p ON oi.perfume_id = p.perfume_id 
-                 WHERE oi.order_id = ? 
-                 ORDER BY oi.order_item_id",
-                [$orderId]
-            );
-            
-        } catch (Exception $e) {
-            error_log("Get customer order items error: " . $e->getMessage());
-            return [];
-        }
-    }
+public function getCustomerOrderItems($order_id) {
+    $stmt = $this->connection->prepare("
+        SELECT 
+            oi.order_quantity,
+            oi.order_price,
+            p.perfume_name,
+            i.file_name,
+            i.file_path
+        FROM order_items oi
+        INNER JOIN perfumes p ON oi.perfume_id = p.perfume_id
+        LEFT JOIN images i ON i.image_id = (
+            SELECT image_id 
+            FROM images 
+            WHERE perfume_id = p.perfume_id 
+            ORDER BY uploaded_at ASC 
+            LIMIT 1
+        )
+        WHERE oi.order_id = ?
+    ");
+    $stmt->execute([$order_id]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
     public function getCustomerOrdersCount($customer_id = null) {
         try {
@@ -615,116 +762,6 @@ public function requireRole($role) {
     }
 
     // =================================================================
-    // CUSTOMER PROFILE MANAGEMENT METHODS
-    // =================================================================
-    
-    public function updateCustomerProfile($data, $customer_id = null) {
-        try {
-            if ($customer_id === null) {
-                $customer_id = $this->getCurrentCustomerId();
-            }
-            
-            if (!$customer_id) {
-                return ['success' => false, 'message' => 'Please login first.'];
-            }
-            
-            $requiredFields = ['customer_firstname', 'customer_lastname', 'customer_username'];
-            foreach ($requiredFields as $field) {
-                if (empty(trim($data[$field] ?? ''))) {
-                    return ['success' => false, 'message' => ucfirst($field) . ' is required.'];
-                }
-            }
-            
-            if (!filter_var($data['customer_username'], FILTER_VALIDATE_EMAIL)) {
-                return ['success' => false, 'message' => 'Please enter a valid email address.'];
-            }
-            
-            $existing = $this->fetch(
-                "SELECT customer_id FROM customers WHERE customer_username = ? AND customer_id != ? LIMIT 1",
-                [$data['customer_username'], $customer_id]
-            );
-            
-            if ($existing) {
-                return ['success' => false, 'message' => 'Email address already exists.'];
-            }
-            
-            $rowsAffected = $this->update(
-                "UPDATE customers SET customer_firstname = ?, customer_lastname = ?, customer_username = ? WHERE customer_id = ?",
-                [
-                    trim($data['customer_firstname']),
-                    trim($data['customer_lastname']),
-                    trim($data['customer_username']),
-                    $customer_id
-                ]
-            );
-            
-            if ($rowsAffected > 0) {
-                if ($customer_id == $this->getCurrentCustomerId()) {
-                    $_SESSION['customer_username'] = $data['customer_username'];
-                    $_SESSION['customer_name'] = $data['customer_firstname'] . ' ' . $data['customer_lastname'];
-                }
-                
-                return ['success' => true, 'message' => 'Profile updated successfully!'];
-            } else {
-                return ['success' => false, 'message' => 'No changes were made.'];
-            }
-            
-        } catch (Exception $e) {
-            error_log("Customer profile update error: " . $e->getMessage());
-            return ['success' => false, 'message' => 'Update failed. Please try again.'];
-        }
-    }
-    
-    public function changeCustomerPassword($currentPassword, $newPassword, $confirmPassword, $customer_id = null) {
-        try {
-            if ($customer_id === null) {
-                $customer_id = $this->getCurrentCustomerId();
-            }
-            
-            if (!$customer_id) {
-                return ['success' => false, 'message' => 'Please login first.'];
-            }
-            
-            if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
-                return ['success' => false, 'message' => 'All password fields are required.'];
-            }
-            
-            if ($newPassword !== $confirmPassword) {
-                return ['success' => false, 'message' => 'New passwords do not match.'];
-            }
-            
-            if (strlen($newPassword) < 6) {
-                return ['success' => false, 'message' => 'Password must be at least 6 characters long.'];
-            }
-            
-            $customer = $this->fetch(
-                "SELECT customer_password FROM customers WHERE customer_id = ? LIMIT 1",
-                [$customer_id]
-            );
-            
-            if (!$customer || !password_verify($currentPassword, $customer['customer_password'])) {
-                return ['success' => false, 'message' => 'Current password is incorrect.'];
-            }
-            
-            $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
-            $rowsAffected = $this->update(
-                "UPDATE customers SET customer_password = ? WHERE customer_id = ?",
-                [$hashedPassword, $customer_id]
-            );
-            
-            if ($rowsAffected > 0) {
-                return ['success' => true, 'message' => 'Password changed successfully!'];
-            } else {
-                return ['success' => false, 'message' => 'Password change failed.'];
-            }
-            
-        } catch (Exception $e) {
-            error_log("Customer password change error: " . $e->getMessage());
-            return ['success' => false, 'message' => 'Password change failed. Please try again.'];
-        }
-    }
-
-    // =================================================================
     // DASHBOARD HELPERS
     // =================================================================
     
@@ -800,46 +837,69 @@ public function requireRole($role) {
         return $this->fetch("SELECT * FROM perfumes WHERE perfume_id = ?", [$id]);
     }
     
-    public function getPerfumes($sex_filter = null, $search_query = null) {
-        $sql = "SELECT * FROM perfumes WHERE 1";
-        $params = [];
+public function getPerfumes($gender_filter = '', $search_query = '', $limit = null, $offset = 0) {
+    $query = "
+        SELECT p.*, i.file_path
+        FROM perfumes p
+        LEFT JOIN (
+            SELECT perfume_id, MIN(file_path) AS file_path
+            FROM images
+            GROUP BY perfume_id 
+        ) i ON p.perfume_id = i.perfume_id
+        WHERE 1
+    ";
 
-        if ($sex_filter === 'Male' || $sex_filter === 'Female') {
-            $sql .= " AND sex = ?";
-            $params[] = $sex_filter;
-        }
+    $params = [];
 
-        if (!empty($search_query)) {
-            $sql .= " AND (perfume_name LIKE ? OR perfume_descr LIKE ? OR perfume_price LIKE ?)";
-            $search_like = "%" . $search_query . "%";
-            $params[] = $search_like;
-            $params[] = $search_like;
-            $params[] = $search_like;
-        }
-
-        $sql .= " ORDER BY perfume_id DESC";
-
-        return $this->select($sql, $params);
+    if (!empty($gender_filter)) {
+        $query .= " AND p.sex = ?";
+        $params[] = $gender_filter;
     }
-    
+
+    if (!empty($search_query)) {
+        $query .= " AND (p.perfume_name LIKE ? OR p.perfume_brand LIKE ?)";
+        $params[] = "%$search_query%";
+        $params[] = "%$search_query%";
+    }
+
+    $query .= " ORDER BY p.perfume_id DESC";
+
+    if ($limit !== null) {
+        $query .= " LIMIT ? OFFSET ?";
+        $params[] = (int)$limit;
+        $params[] = (int)$offset;
+    }
+
+    // Use your existing select() helper
+    return $this->select($query, $params);
+}
+
+
     public function addProduct($data, $files) {
-        $name = $data['perfume_name'];
-        $brand = $data['perfume_brand'];
-        $price = $data['perfume_price'];
-        $sex = $data['sex'];
-        $stock = $data['stock'] ?? 0;
-        $description = $data['perfume_desc'] ?? '';
-        $perfume_ml = $data['perfume_ml'] ?? '';
-        $scent_family = $data['scent_family'] ?? '';
-        $admin_id = $data['admin_id'] ?? null;
+    $name = $data['perfume_name'];
+    $brand = $data['perfume_brand'];
+    $price = $data['perfume_price'];
+    $sex = $data['sex'];
+    $stock = $data['stock'] ?? 0;
+    $description = $data['perfume_desc'] ?? '';
+    $perfume_ml = $data['perfume_ml'] ?? '';
+    $scent_family = $data['scent_family'] ?? '';
+    $admin_id = $data['admin_id'] ?? null;
 
-        return $this->insert(
-            "INSERT INTO perfumes (admin_id, perfume_name, perfume_brand, perfume_price, perfume_ml, sex, perfume_descr, stock, scent_family, p_created_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
-            [$admin_id, $name, $brand, $price, $perfume_ml, $sex, $description, $stock, $scent_family]
-        );
-    }
-    
+    try {
+        $stmt = $this->connection->prepare("
+            INSERT INTO perfumes 
+            (admin_id, perfume_name, perfume_brand, perfume_price, perfume_ml, sex, perfume_desc, stock, scent_family, p_created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([$admin_id, $name, $brand, $price, $perfume_ml, $sex, $description, $stock, $scent_family]);
+        return $this->connection->lastInsertId();
+   } catch (Exception $e) {
+    die("ERROR: " . $e->getMessage());
+}
+
+}
+
     public function updateProduct($data, $files) {
         $id = intval($data['perfume_id']);
         $name = $data['perfume_name'];
@@ -868,35 +928,133 @@ public function requireRole($role) {
         return $_SESSION['cart'];
     }
 
-    public function addToCart($perfume_id, $perfume_name, $perfume_price, $qty = 1) {
-        $qty = max(1, (int)$qty);
+public function addToCart($id, $name, $price, $image = '', $qty = 1) {
+    if (!isset($_SESSION['cart'])) $_SESSION['cart'] = [];
 
-        if (isset($_SESSION['cart'][$perfume_id])) {
-            $_SESSION['cart'][$perfume_id]['quantity'] += $qty;
-        } else {
-            $_SESSION['cart'][$perfume_id] = [
-                'name' => $perfume_name,
-                'price' => (float)$perfume_price,
-                'quantity' => $qty,
-            ];
+    // Use the exact file path from DB, fallback to default
+    $imagePath = !empty($image) ? $image : "images/default.jpg";
+
+    $alreadyExists = isset($_SESSION['cart'][$id]);
+    
+    if ($alreadyExists) {
+        $_SESSION['cart'][$id]['quantity'] += $qty;
+    } else {
+        $_SESSION['cart'][$id] = [
+            'name' => $name,
+            'price' => $price,
+            'image' => $imagePath,
+            'quantity' => $qty
+        ];
+    }
+    
+    // Save cart to database if user is logged in (with error handling)
+    try {
+        $this->saveCartToDatabase();
+    } catch (Exception $e) {
+        // Log error but don't fail the cart operation
+        error_log("Cart save error: " . $e->getMessage());
+    }
+    
+    return $alreadyExists ? 'already_exists' : 'added';
+}
+
+    // Save cart to database for logged-in customers using cart_items table
+    public function saveCartToDatabase() {
+        if (!$this->isLoggedIn() || $this->getCurrentUserRole() !== 'customer') {
+            return;
+        }
+        
+        $customerId = $_SESSION['customer_id'] ?? 0;
+        if ($customerId <= 0) return;
+        
+        try {
+            // First, clear existing cart items for this customer
+            $this->delete("DELETE FROM cart_items WHERE cart_id = ?", [$customerId]);
+            
+            // Then insert current cart items
+            if (!empty($_SESSION['cart'])) {
+                foreach ($_SESSION['cart'] as $perfumeId => $item) {
+                    $this->insert(
+                        "INSERT INTO cart_items (cart_id, perfume_id, cart_items_quantity) VALUES (?, ?, ?)",
+                        [$customerId, $perfumeId, $item['quantity']]
+                    );
+                }
+            }
+        } catch (Exception $e) {
+            // Log but don't throw - cart still works in session
+            error_log("Database cart save failed: " . $e->getMessage());
         }
     }
+    
+    // Load cart from database for logged-in customers using cart_items table
+    public function loadCartFromDatabase() {
+        if (!$this->isLoggedIn() || $this->getCurrentUserRole() !== 'customer') {
+            return;
+        }
+        
+        $customerId = $_SESSION['customer_id'] ?? 0;
+        if ($customerId <= 0) return;
+        
+        try {
+            // Get all cart items for this customer
+            $cartItems = $this->select(
+                "SELECT ci.perfume_id, ci.cart_items_quantity, p.perfume_name, p.perfume_price, 
+                        (SELECT i.file_path FROM images i WHERE i.perfume_id = p.perfume_id LIMIT 1) AS image
+                 FROM cart_items ci
+                 JOIN perfumes p ON ci.perfume_id = p.perfume_id
+                 WHERE ci.cart_id = ?",
+                [$customerId]
+            );
+            
+            if ($cartItems) {
+                $_SESSION['cart'] = [];
+                foreach ($cartItems as $item) {
+                    $imagePath = !empty($item['image']) ? $item['image'] : 'images/default.jpg';
+                    $_SESSION['cart'][$item['perfume_id']] = [
+                        'name' => $item['perfume_name'],
+                        'price' => $item['perfume_price'],
+                        'image' => $imagePath,
+                        'quantity' => $item['cart_items_quantity']
+                    ];
+                }
+            }
+        } catch (Exception $e) {
+            // Log but don't fail login - cart just won't restore
+            error_log("Database cart load failed: " . $e->getMessage());
+        }
+    }
+
 
     public function updateCartQuantity($id, $qty) {
         $qty = max(1, (int)$qty);
         if (isset($_SESSION['cart'][$id])) {
             $_SESSION['cart'][$id]['quantity'] = $qty;
+            try {
+                $this->saveCartToDatabase();
+            } catch (Exception $e) {
+                error_log("Cart update save error: " . $e->getMessage());
+            }
         }
     }
 
     public function removeFromCart($id) {
         if (isset($_SESSION['cart'][$id])) {
             unset($_SESSION['cart'][$id]);
+            try {
+                $this->saveCartToDatabase();
+            } catch (Exception $e) {
+                error_log("Cart remove save error: " . $e->getMessage());
+            }
         }
     }
 
     public function clearCart() {
         $_SESSION['cart'] = [];
+        try {
+            $this->saveCartToDatabase();
+        } catch (Exception $e) {
+            error_log("Cart clear save error: " . $e->getMessage());
+        }
     }
 
     public function isCartEmpty() {
@@ -1113,16 +1271,36 @@ public function requireRole($role) {
         return isset($_SESSION['customer_id']) || isset($_SESSION['admin_id']);
     }
     
-    public function getCheckoutSummary() {
+    public function getCheckoutSummary($selectedItemIds = null) {
         if ($this->isCartEmpty()) {
             return null;
         }
+        
         $cartItems = $_SESSION['cart'];
+        
+        // If specific items are selected, filter the cart
+        if ($selectedItemIds !== null && is_array($selectedItemIds)) {
+            $filteredItems = [];
+            foreach ($selectedItemIds as $itemId) {
+                if (isset($cartItems[$itemId])) {
+                    $filteredItems[$itemId] = $cartItems[$itemId];
+                }
+            }
+            $cartItems = $filteredItems;
+        }
+        
+        // Calculate total for selected items
+        $total = 0;
+        $itemCount = 0;
+        foreach ($cartItems as $item) {
+            $total += $item['price'] * $item['quantity'];
+            $itemCount += $item['quantity'];
+        }
         
         return [
             'items' => $cartItems,
-            'total' => $this->calculateGrandTotal(),
-            'item_count' => array_sum(array_column($cartItems, 'quantity'))
+            'total' => $total,
+            'item_count' => $itemCount
         ];
     }
     // =================================================================
@@ -1199,5 +1377,149 @@ public function getUnreadContactCount() {
         return 0;
     }
 }
+public function saveAdminReply($messageId, $replyMessage) {
+    $stmt = $this->conn->prepare("UPDATE contact_messages SET admin_reply = ? WHERE id = ?");
+    $stmt->bind_param("si", $replyMessage, $messageId);
+    return $stmt->execute();
+}
+
+// ==================== REVIEWS METHODS ====================
+
+public function addReview($orderId, $customerId, $perfumeId, $rating, $comment) {
+    try {
+        // Check if review already exists for this order and product
+        $existing = $this->fetch(
+            "SELECT id FROM reviews WHERE order_id = ? AND customer_id = ? AND perfume_id = ?",
+            [$orderId, $customerId, $perfumeId]
+        );
+        
+        if ($existing) {
+            return ['success' => false, 'message' => 'You have already reviewed this product'];
+        }
+        
+        // Insert review
+        $stmt = $this->connection->prepare("
+            INSERT INTO reviews (order_id, customer_id, perfume_id, rating, comment, created_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([$orderId, $customerId, $perfumeId, $rating, $comment]);
+        
+        return ['success' => true, 'message' => 'Review submitted successfully'];
+    } catch (Exception $e) {
+        error_log("Add review error: " . $e->getMessage());
+        return ['success' => false, 'message' => 'Failed to submit review'];
+    }
+}
+
+public function getProductReviews($perfumeId) {
+    try {
+        return $this->select("
+            SELECT r.*, c.customer_firstname, c.customer_lastname, c.profile_picture
+            FROM reviews r
+            JOIN customers c ON r.customer_id = c.customer_id
+            WHERE r.perfume_id = ?
+            ORDER BY r.created_at DESC
+        ", [$perfumeId]);
+    } catch (Exception $e) {
+        error_log("Get product reviews error: " . $e->getMessage());
+        return [];
+    }
+}
+
+public function getAllReviews($limit = null, $offset = 0) {
+    try {
+        $query = "
+            SELECT r.*, c.customer_firstname, c.customer_lastname, c.profile_picture,
+                   p.perfume_name, p.perfume_brand
+            FROM reviews r
+            JOIN customers c ON r.customer_id = c.customer_id
+            JOIN perfumes p ON r.perfume_id = p.perfume_id
+            ORDER BY r.created_at DESC
+        ";
+        
+        if ($limit) {
+            $query .= " LIMIT ? OFFSET ?";
+            return $this->select($query, [$limit, $offset]);
+        }
+        
+        return $this->select($query);
+    } catch (Exception $e) {
+        error_log("Get all reviews error: " . $e->getMessage());
+        return [];
+    }
+}
+
+public function hasReviewed($orderId, $customerId, $perfumeId) {
+    try {
+        $result = $this->fetch(
+            "SELECT id FROM reviews WHERE order_id = ? AND customer_id = ? AND perfume_id = ?",
+            [$orderId, $customerId, $perfumeId]
+        );
+        return !empty($result);
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
+public function getOrderProducts($orderId) {
+    try {
+        // Get order items first
+        $orderItems = $this->select("SELECT * FROM order_items WHERE order_id = ?", [$orderId]);
+        
+        if (empty($orderItems)) {
+            return [];
+        }
+        
+        // Add perfume details to each item
+        $products = [];
+        foreach ($orderItems as $item) {
+            $productName = $item['product_name'] ?? '';
+            
+            // Try to find matching perfume by name (case-insensitive)
+            $perfume = $this->fetch("
+                SELECT perfume_id, perfume_name, perfume_brand 
+                FROM perfumes 
+                WHERE LOWER(perfume_name) = LOWER(?) 
+                LIMIT 1
+            ", [$productName]);
+            
+            if ($perfume) {
+                $item['perfume_id'] = $perfume['perfume_id'];
+                $item['perfume_name'] = $perfume['perfume_name'];
+                $item['perfume_brand'] = $perfume['perfume_brand'];
+            } else {
+                // Fallback: try partial match
+                $perfume = $this->fetch("
+                    SELECT perfume_id, perfume_name, perfume_brand 
+                    FROM perfumes 
+                    WHERE LOWER(perfume_name) LIKE LOWER(?) 
+                    LIMIT 1
+                ", ['%' . $productName . '%']);
+                
+                if ($perfume) {
+                    $item['perfume_id'] = $perfume['perfume_id'];
+                    $item['perfume_name'] = $perfume['perfume_name'];
+                    $item['perfume_brand'] = $perfume['perfume_brand'];
+                } else {
+                    // Last resort: use first perfume
+                    $anyPerfume = $this->fetch("SELECT perfume_id, perfume_name, perfume_brand FROM perfumes ORDER BY perfume_id LIMIT 1");
+                    if ($anyPerfume) {
+                        $item['perfume_id'] = $anyPerfume['perfume_id'];
+                        $item['perfume_name'] = $productName ?: $anyPerfume['perfume_name'];
+                        $item['perfume_brand'] = $anyPerfume['perfume_brand'];
+                    }
+                }
+            }
+            
+            $products[] = $item;
+        }
+        
+        return $products;
+    } catch (Exception $e) {
+        error_log("Get order products error: " . $e->getMessage());
+        return [];
+    }
+}
+
 }
 ?>

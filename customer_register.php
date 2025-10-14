@@ -25,10 +25,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
     // Validation
     if (empty($firstname) || empty($lastname) || empty($username) || empty($email) || empty($password)) {
         $error = "All fields are required.";
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error = "Please enter a valid email address.";
-    } elseif (strlen($password) < 6) {
-        $error = "Password must be at least 6 characters long.";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL) || strpos($email, '@') === false) {
+        $error = "Please enter a valid email address with @ symbol.";
+    } elseif (strlen($password) < 8) {
+        $error = "Password must be at least 8 characters long.";
+    } elseif (!preg_match('/[A-Z]/', $password)) {
+        $error = "Password must contain at least one uppercase letter.";
+    } elseif (!preg_match('/[a-z]/', $password)) {
+        $error = "Password must contain at least one lowercase letter.";
+    } elseif (!preg_match('/[0-9]/', $password)) {
+        $error = "Password must contain at least one number.";
+    } elseif (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        $error = "Password must contain at least one special character.";
     } elseif ($password !== $confirm_password) {
         $error = "Passwords do not match.";
     } else {
@@ -122,13 +130,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Register - Happy Sprays</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 * {margin:0; padding:0; box-sizing:border-box;}
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #fff;
-    color: #111;
+    font-family: 'Poppins', sans-serif;
+    background: #f5f5f5;
+    color: #333;
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -138,106 +146,142 @@ body {
 
 .register-container {
     background: #fff;
-    border-radius: 15px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08);
     overflow: hidden;
-    max-width: 900px;
+    max-width: 1000px;
     width: 100%;
     display: grid;
     grid-template-columns: 1fr 1fr;
+    border: 2px solid #000;
 }
 
 .register-left {
-    background: #fff;
-    border-right: 1px solid #eee;
-    padding: 60px 40px;
+    background: linear-gradient(135deg, #000 0%, #333 100%);
+    padding: 80px 50px;
+    color: #fff;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.register-left::before {
+    content: '';
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 50%;
+    top: -100px;
+    right: -100px;
+}
+
+.register-left::after {
+    content: '';
+    position: absolute;
+    width: 200px;
+    height: 200px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 50%;
+    bottom: -50px;
+    left: -50px;
 }
 
 .register-left h1 {
     font-family: 'Playfair Display', serif;
-    font-size: 42px;
-    letter-spacing: 4px;
+    font-size: 48px;
+    letter-spacing: 3px;
     text-transform: uppercase;
-    color: #111;
-    margin-bottom: 25px;
+    color: #fff;
+    margin-bottom: 20px;
+    position: relative;
+    z-index: 1;
 }
 
 .register-left p {
     font-size: 16px;
     line-height: 1.6;
-    color: #333;
+    color: rgba(255, 255, 255, 0.9);
     max-width: 350px;
+    position: relative;
+    z-index: 1;
 }
 
 .register-right {
-    background: #f9f9f9;
-    padding: 60px 40px;
+    background: #fff;
+    padding: 60px 50px;
     max-height: 90vh;
     overflow-y: auto;
 }
 
 .register-header {
-    margin-bottom: 30px;
+    margin-bottom: 35px;
 }
 
 .register-header h2 {
     font-family: 'Playfair Display', serif;
-    font-size: 28px;
-    margin-bottom: 10px;
-    color: #111;
+    font-size: 32px;
+    margin-bottom: 8px;
+    color: #000;
 }
 
 .register-header p {
-    color: #555;
+    color: #666;
+    font-size: 15px;
 }
 
 .error-message {
     background: #ffebee;
     color: #c62828;
-    padding: 12px;
-    border-radius: 5px;
-    margin-bottom: 20px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    margin-bottom: 24px;
     border-left: 4px solid #c62828;
+    font-size: 14px;
 }
 
 .success-message {
     background: #e8f5e9;
     color: #2e7d32;
-    padding: 12px;
-    border-radius: 5px;
-    margin-bottom: 20px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    margin-bottom: 24px;
     border-left: 4px solid #2e7d32;
+    font-size: 14px;
 }
 
 .form-group {
-    margin-bottom: 20px;
+    margin-bottom: 22px;
 }
 
 .form-group label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     font-weight: 600;
-    color: #222;
+    color: #000;
+    font-size: 14px;
 }
 
 .form-group input {
     width: 100%;
-    padding: 12px 15px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    font-size: 14px;
-    transition: 0.3s;
-    background: #fff;
+    padding: 14px 18px;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    font-size: 15px;
+    transition: all 0.3s;
+    background: #fafafa;
+    font-family: 'Poppins', sans-serif;
 }
 
 .form-group input:focus {
     outline: none;
-    border-color: #111;
+    border-color: #000;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
 }
 
 .form-row {
@@ -248,32 +292,38 @@ body {
 
 .register-btn {
     width: 100%;
-    padding: 14px;
-    background: #111;
+    padding: 16px;
+    background: #000;
     color: #fff;
-    border: none;
-    border-radius: 8px;
+    border: 2px solid #000;
+    border-radius: 12px;
     font-size: 16px;
     font-weight: 600;
     cursor: pointer;
-    transition: 0.3s;
+    transition: all 0.3s;
+    font-family: 'Poppins', sans-serif;
+    margin-top: 8px;
 }
 
 .register-btn:hover {
-    background: #333;
-    transform: translateY(-1px);
+    background: #fff;
+    color: #000;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 }
 
 .login-link {
     text-align: center;
-    margin-top: 20px;
-    color: #555;
+    margin-top: 28px;
+    color: #666;
+    font-size: 15px;
 }
 
 .login-link a {
     color: #000;
     text-decoration: none;
     font-weight: 600;
+    transition: 0.3s;
 }
 
 .login-link a:hover {
@@ -283,22 +333,147 @@ body {
 .password-hint {
     font-size: 12px;
     color: #777;
-    margin-top: 5px;
+    margin-top: 6px;
+    font-style: italic;
+}
+
+.password-wrapper {
+    position: relative;
+}
+
+.password-wrapper input {
+    padding-right: 50px;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #666;
+    font-size: 22px;
+    user-select: none;
+    transition: color 0.3s;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toggle-password:hover {
+    color: #000;
+}
+
+.eye-icon {
+    width: 24px;
+    height: 24px;
+    display: inline-block;
+}
+
+.password-requirements {
+    font-size: 13px;
+    color: #333;
+    margin-top: 8px;
+    padding: 12px 14px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    display: none;
+}
+
+.password-requirements.show {
+    display: block;
+}
+
+.password-requirements strong {
+    display: block;
+    margin-bottom: 8px;
+    color: #000;
+}
+
+.password-requirements ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.password-requirements li {
+    margin: 6px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.password-requirements li .icon {
+    font-size: 16px;
+    min-width: 20px;
+}
+
+.requirement-met {
+    color: #2e7d32;
+}
+
+.requirement-met .icon::before {
+    content: '✔';
+}
+
+.requirement-unmet {
+    color: #c62828;
+}
+
+.requirement-unmet .icon::before {
+    content: '✖';
+}
+
+.password-success {
+    font-size: 14px;
+    color: #2e7d32;
+    margin-top: 8px;
+    padding: 12px 14px;
+    background: #e8f5e9;
+    border-radius: 8px;
+    border: 1px solid #2e7d32;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+}
+
+.password-success.show {
+    display: flex;
+}
+
+.password-success::before {
+    content: '✅';
+    font-size: 16px;
 }
 
 @media (max-width: 768px) {
+    body {
+        padding: 20px;
+    }
+    
     .register-container {
         grid-template-columns: 1fr;
     }
     
     .register-left {
-        padding: 40px 30px;
-        border-right: none;
-        border-bottom: 1px solid #eee;
+        padding: 60px 40px;
+    }
+    
+    .register-left h1 {
+        font-size: 36px;
     }
     
     .register-right {
-        padding: 40px 30px;
+        padding: 50px 40px;
+    }
+    
+    .register-header h2 {
+        font-size: 28px;
     }
     
     .form-row {
@@ -371,26 +546,56 @@ body {
                        name="email" 
                        placeholder="your.email@example.com"
                        value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
+                       pattern="[^@\s]+@[^@\s]+\.[^@\s]+"
+                       title="Please enter a valid email address with @ symbol"
                        required>
             </div>
             
             <div class="form-group">
                 <label for="password">Password *</label>
-                <input type="password" 
-                       id="password" 
-                       name="password" 
-                       placeholder="Create a strong password"
-                       required>
-                <div class="password-hint">Must be at least 6 characters long</div>
+                <div class="password-wrapper">
+                    <input type="password" 
+                           id="password" 
+                           name="password" 
+                           placeholder="Create a strong password"
+                           required>
+                    <span class="toggle-password" onclick="togglePassword('password', this)">
+                        <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                        </svg>
+                    </span>
+                </div>
+                <div class="password-requirements" id="passwordRequirements">
+                    <strong>Password must contain:</strong>
+                    <ul>
+                        <li class="requirement-unmet"><span class="icon"></span><span>At least 8 characters</span></li>
+                        <li class="requirement-unmet"><span class="icon"></span><span>One uppercase letter (A-Z)</span></li>
+                        <li class="requirement-unmet"><span class="icon"></span><span>One lowercase letter (a-z)</span></li>
+                        <li class="requirement-unmet"><span class="icon"></span><span>One number (0-9)</span></li>
+                        <li class="requirement-unmet"><span class="icon"></span><span>One special character (!@#$%^&*)</span></li>
+                    </ul>
+                </div>
+                <div class="password-success" id="passwordSuccess">
+                    Password is strong!
+                </div>
             </div>
             
             <div class="form-group">
                 <label for="confirm_password">Confirm Password *</label>
-                <input type="password" 
-                       id="confirm_password" 
-                       name="confirm_password" 
-                       placeholder="Re-enter your password"
-                       required>
+                <div class="password-wrapper">
+                    <input type="password" 
+                           id="confirm_password" 
+                           name="confirm_password" 
+                           placeholder="Re-enter your password"
+                           required>
+                    <span class="toggle-password" onclick="togglePassword('confirm_password', this)">
+                        <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                        </svg>
+                    </span>
+                </div>
             </div>
             
             <button type="submit" name="register" class="register-btn">Create Account</button>
@@ -401,6 +606,120 @@ body {
         </form>
     </div>
 </div>
+
+<script>
+function togglePassword(fieldId, iconElement) {
+    const field = document.getElementById(fieldId);
+    const svg = iconElement.querySelector('svg');
+    
+    if (field.type === 'password') {
+        field.type = 'text';
+        // Eye (visible) - password is now shown
+        svg.innerHTML = `
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+        `;
+    } else {
+        field.type = 'password';
+        // Eye with slash (hidden) - password is now hidden
+        svg.innerHTML = `
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+        `;
+    }
+}
+
+// Real-time password validation
+document.addEventListener('DOMContentLoaded', function() {
+    const passwordField = document.getElementById('password');
+    const confirmField = document.getElementById('confirm_password');
+    const requirementsBox = document.getElementById('passwordRequirements');
+    const successBox = document.getElementById('passwordSuccess');
+    
+    if (passwordField) {
+        // Show requirements when user focuses on password field
+        passwordField.addEventListener('focus', function() {
+            if (this.value.length === 0) {
+                requirementsBox.classList.add('show');
+                successBox.classList.remove('show');
+            }
+        });
+        
+        // Hide both when user leaves password field and it's empty
+        passwordField.addEventListener('blur', function() {
+            if (this.value.length === 0) {
+                requirementsBox.classList.remove('show');
+                successBox.classList.remove('show');
+            }
+        });
+        
+        // Validate as user types
+        passwordField.addEventListener('input', function() {
+            validatePasswordStrength(this.value);
+        });
+    }
+    
+    if (confirmField) {
+        confirmField.addEventListener('input', function() {
+            validatePasswordMatch();
+        });
+    }
+});
+
+function validatePasswordStrength(password) {
+    const requirements = document.querySelectorAll('.password-requirements li');
+    const requirementsBox = document.getElementById('passwordRequirements');
+    const successBox = document.getElementById('passwordSuccess');
+    if (requirements.length === 0) return;
+    
+    const checks = [
+        password.length >= 8,
+        /[A-Z]/.test(password),
+        /[a-z]/.test(password),
+        /[0-9]/.test(password),
+        /[^A-Za-z0-9]/.test(password)
+    ];
+    
+    requirements.forEach((req, index) => {
+        if (checks[index]) {
+            req.classList.remove('requirement-unmet');
+            req.classList.add('requirement-met');
+        } else {
+            req.classList.remove('requirement-met');
+            req.classList.add('requirement-unmet');
+        }
+    });
+    
+    // Check if all requirements are met
+    const allMet = checks.every(check => check === true);
+    
+    if (allMet) {
+        // Hide requirements, show success
+        requirementsBox.classList.remove('show');
+        successBox.classList.add('show');
+    } else {
+        // Show requirements, hide success
+        requirementsBox.classList.add('show');
+        successBox.classList.remove('show');
+    }
+}
+
+function validatePasswordMatch() {
+    const password = document.getElementById('password').value;
+    const confirm = document.getElementById('confirm_password').value;
+    const confirmField = document.getElementById('confirm_password');
+    
+    if (confirm.length > 0) {
+        if (password !== confirm) {
+            confirmField.style.borderColor = '#c62828';
+        } else {
+            confirmField.style.borderColor = '#2e7d32';
+        }
+    } else {
+        confirmField.style.borderColor = '#e0e0e0';
+    }
+}
+</script>
 
 </body>
 </html>

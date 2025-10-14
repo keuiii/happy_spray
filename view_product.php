@@ -118,6 +118,50 @@ body {font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#f
 .back-btn-bar a { padding: 12px 24px; font-size: 16px; font-weight: bold; background: #fff; color: #000; border: 2px solid #000; text-decoration: none; border-radius: 6px; transition: 0.3s; display: inline-block;}
 .back-btn-bar a:hover {background:#000;color:#fff;}
 
+/* === Image zoom modal (small, non-intrusive) === */
+.product-slider img { cursor: zoom-in; }
+
+/* popup wrapper */
+.image-popup {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.86);
+  z-index: 2000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.22s ease;
+}
+.image-popup.active { opacity: 1; visibility: visible; }
+
+/* popup image */
+.image-popup .popup-img {
+  max-width: 92%;
+  max-height: 88%;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  transform: scale(0.96);
+  transition: transform 0.2s ease;
+}
+.image-popup.active .popup-img { transform: scale(1); }
+
+/* close button */
+.image-popup .popup-close {
+  position: absolute;
+  top: 22px;
+  right: 28px;
+  color: #fff;
+  font-size: 32px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 700;
+}
+.image-popup .popup-close:hover { color: #ddd; }
+
+
 /* Product Container */
 .container { display: flex; justify-content: center; align-items: flex-start; gap: 80px; padding: 180px 40px 100px; max-width: 1200px; margin: auto;}
 
@@ -137,6 +181,29 @@ body {font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#f
 .price { font-size: 28px; font-weight: bold; margin: 20px 0;}
 .ml { font-size: 18px; font-weight: 500; margin: 5px 0 15px; color: #444; }
 
+/* Stock Status */
+.stock-status {
+    font-size: 16px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 6px;
+    display: inline-block;
+    margin: 10px 0 15px;
+    letter-spacing: 0.5px;
+}
+
+.stock-status.in-stock {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #10b981;
+}
+
+.stock-status.out-of-stock {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+}
+
 /* Tabs */
 .tabs { margin: 20px 0; display: flex; gap: 15px; border-bottom: 2px solid #000;}
 .tab-btn { padding: 10px 18px; font-size: 15px; font-weight: bold; border: none; background: none; cursor: pointer; transition: 0.3s; border-bottom: 2px solid transparent;}
@@ -144,13 +211,126 @@ body {font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#f
 .tab-btn:hover { color: #555;}
 .tab-content { margin-top: 20px; font-size: 15px; line-height: 1.6;}
 
+/* Product Reviews Styles */
+.product-reviews-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-top: 10px;
+}
+
+.product-review-card {
+    background: #fafafa;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 20px;
+    transition: 0.2s;
+}
+
+.product-review-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.review-header-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.review-avatar {
+    flex-shrink: 0;
+}
+
+.avatar-img {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+.avatar-circle {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 600;
+    color: #333;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+.review-info {
+    flex: 1;
+}
+
+.review-customer-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #000;
+    margin-bottom: 2px;
+}
+
+.review-date {
+    font-size: 13px;
+    color: #666;
+}
+
+.review-rating {
+    display: flex;
+    gap: 2px;
+}
+
+.review-rating .star {
+    color: #ddd;
+    font-size: 18px;
+}
+
+.review-rating .star.filled {
+    color: #FFD700;
+}
+
+.review-comment {
+    font-size: 15px;
+    line-height: 1.6;
+    color: #333;
+    font-style: italic;
+}
+
 /* Add to Cart button */
 .add-to-cart-btn { padding: 14px 28px; font-size: 16px; font-weight: bold; background: #fff; color: #000; border: 2px solid #000; cursor: pointer; margin-top: 25px; transition: 0.3s; letter-spacing: 1px;}
 .add-to-cart-btn:hover { background: #000; color: #fff; }
+.add-to-cart-btn:disabled {
+    background: #999;
+    color: #fff;
+    border-color: #999;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+.add-to-cart-btn:disabled:hover {
+    background: #999;
+    color: #fff;
+}
 
 .qty-box { display: flex; align-items: center; margin-top: 20px; }
 .qty-box button { width: 32px; height: 32px; font-size: 18px; border: 1px solid #000; background: #fff; cursor: pointer; border-radius: 4px;}
+.qty-box button:disabled {
+    background: #f0f0f0;
+    color: #999;
+    border-color: #ccc;
+    cursor: not-allowed;
+}
 .qty-box input { width: 60px; text-align: center; margin: 0 8px; padding: 6px; border: 1px solid #000; border-radius: 4px;}
+.qty-box input:disabled {
+    background: #f0f0f0;
+    color: #999;
+    border-color: #ccc;
+}
 
 /* Divider + Recommendations */
 .divider { max-width: 1200px; margin: 60px auto 40px; border: none; border-top: 1px solid #ccc; }
@@ -172,6 +352,46 @@ footer { background: #e9e9e9; border-top: 1px solid #eee; padding: 60px 20px; te
 .social-icons { margin-top: 25px; }
 .social-icons a { margin: 0 10px; color: #555; text-decoration: none; font-size: 18px; }
 .social-icons a:hover { color: #000; }
+
+/* Custom SweetAlert Styling */
+.custom-swal-popup {
+  font-family: 'Poppins', 'Segoe UI', sans-serif !important;
+  border: 2px solid #000 !important;
+  border-radius: 16px !important;
+  padding: 30px !important;
+}
+
+.custom-swal-title {
+  font-family: 'Playfair Display', serif !important;
+  color: #000 !important;
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  margin-bottom: 10px !important;
+}
+
+.custom-swal-text {
+  color: #333 !important;
+  font-size: 16px !important;
+  line-height: 1.6 !important;
+}
+
+.custom-swal-button {
+  background: #000 !important;
+  color: #fff !important;
+  border: 2px solid #000 !important;
+  border-radius: 8px !important;
+  padding: 12px 30px !important;
+  font-weight: 600 !important;
+  font-size: 15px !important;
+  transition: all 0.3s !important;
+}
+
+.custom-swal-button:hover {
+  background: #fff !important;
+  color: #000 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
 </style>
 </head>
 <body>
@@ -228,11 +448,27 @@ footer { background: #e9e9e9; border-top: 1px solid #eee; padding: 60px 20px; te
         <?php endif; ?>
     </div>
 
+    <!-- Image zoom modal (paste before </body>) -->
+<div id="imagePopup" class="image-popup" aria-hidden="true" role="dialog">
+  <span class="popup-close" id="popupClose" aria-label="Close">&times;</span>
+  <img id="popupImg" class="popup-img" src="" alt="Zoomed image">
+</div>
+
+
     <div class="product-details">
         <h1><?= htmlspecialchars($product['perfume_name']) ?></h1>
         <p class="price">₱<?= $product['perfume_price'] ?></p>
         <?php if (!empty($product['perfume_ml'])): ?>
             <p class="ml">Size: <?= htmlspecialchars($product['perfume_ml']) ?> ml</p>
+        <?php endif; ?>
+        
+        <?php 
+        $isOutOfStock = isset($product['stock']) && $product['stock'] <= 0;
+        if ($isOutOfStock): 
+        ?>
+            <p class="stock-status out-of-stock">⚠️ Out of Stock</p>
+        <?php else: ?>
+            <p class="stock-status in-stock">✓ In Stock (<?= $product['stock'] ?> available)</p>
         <?php endif; ?>
 
         <div class="tabs">
@@ -249,26 +485,71 @@ footer { background: #e9e9e9; border-top: 1px solid #eee; padding: 60px 20px; te
             <p><strong><?= htmlspecialchars($product['perfume_brand']) ?></strong></p>
         </div>
         <div class="tab-content" id="reviews" style="display:none;">
-            <p>No reviews yet. Be the first to review this perfume!</p>
+            <?php
+            // Fetch reviews for this product
+            $productReviews = $db->getProductReviews($product['perfume_id']);
+            
+            if (empty($productReviews)) {
+                echo '<p style="color: #666; font-style: italic;">No reviews yet. Be the first to review this perfume!</p>';
+            } else {
+                echo '<div class="product-reviews-list">';
+                foreach ($productReviews as $review) {
+                    $customerName = htmlspecialchars($review['customer_firstname'] . ' ' . $review['customer_lastname']);
+                    $reviewDate = date('F j, Y', strtotime($review['created_at']));
+                    $rating = intval($review['rating']);
+                    
+                    // Generate profile picture path or colored avatar
+                    $profilePicPath = 'uploads/profiles/' . $review['customer_id'] . '.jpg';
+                    $hasProfilePic = file_exists($profilePicPath);
+                    $initial = strtoupper(substr($review['customer_firstname'], 0, 1));
+                    $colors = ['#ffcdd2', '#f8bbd0', '#e1bee7', '#d1c4e9', '#c5cae9', '#bbdefb', '#b3e5fc', '#b2ebf2', '#b2dfdb', '#c8e6c9', '#dcedc8', '#ffe0b2'];
+                    $colorIndex = $review['customer_id'] % count($colors);
+                    $bgColor = $colors[$colorIndex];
+                    
+                    echo '<div class="product-review-card">';
+                    echo '<div class="review-header-section">';
+                    echo '<div class="review-avatar">';
+                    if ($hasProfilePic) {
+                        echo '<img src="' . htmlspecialchars($profilePicPath) . '?v=' . time() . '" alt="' . $customerName . '" class="avatar-img">';
+                    } else {
+                        echo '<div class="avatar-circle" style="background-color: ' . $bgColor . ';">' . $initial . '</div>';
+                    }
+                    echo '</div>';
+                    echo '<div class="review-info">';
+                    echo '<div class="review-customer-name">' . $customerName . '</div>';
+                    echo '<div class="review-date">' . $reviewDate . '</div>';
+                    echo '</div>';
+                    echo '<div class="review-rating">';
+                    for ($i = 1; $i <= 5; $i++) {
+                        echo '<span class="star' . ($i <= $rating ? ' filled' : '') . '">★</span>';
+                    }
+                    echo '</div>';
+                    echo '</div>';
+                    echo '<div class="review-comment">' . nl2br(htmlspecialchars($review['comment'])) . '</div>';
+                    echo '</div>';
+                }
+                echo '</div>';
+            }
+            ?>
         </div>
         <div class="tab-content" id="shipping" style="display:none;">
             <p>Standard shipping: 3-5 business days.<br>Express shipping: 1-2 business days.</p>
         </div>
 
-<form class="add-to-cart-form" method="post" action="cart.php">
+<form class="add-to-cart-form" id="addToCartForm" method="post">
     <input type="hidden" name="id" value="<?= $product['perfume_id'] ?>">
     <input type="hidden" name="name" value="<?= htmlspecialchars($product['perfume_name']) ?>">
     <input type="hidden" name="price" value="<?= $product['perfume_price'] ?>">
     <input type="hidden" name="image" value="<?= !empty($images[0]) ? htmlspecialchars(trim($images[0])) : 'images/default.jpg' ?>">
 
     <div class="qty-box">
-        <button type="button" onclick="changeQty(-1)">-</button>
-        <input type="number" id="qtyInput" name="qty" value="1" min="1">
-        <button type="button" onclick="changeQty(1)">+</button>
+        <button type="button" onclick="changeQty(-1)" <?= $isOutOfStock ? 'disabled' : '' ?>>-</button>
+        <input type="number" id="qtyInput" name="qty" value="1" min="1" <?= $isOutOfStock ? 'disabled' : '' ?>>
+        <button type="button" onclick="changeQty(1)" <?= $isOutOfStock ? 'disabled' : '' ?>>+</button>
     </div>
 
-    <button type="submit" name="add_to_cart" value="1" class="add-to-cart-btn">
-        ADD TO CART
+    <button type="submit" name="add_to_cart" value="1" class="add-to-cart-btn" <?= $isOutOfStock ? 'disabled' : '' ?>>
+        <?= $isOutOfStock ? 'OUT OF STOCK' : 'ADD TO CART' ?>
     </button>
 </form>
 
@@ -327,6 +608,100 @@ footer { background: #e9e9e9; border-top: 1px solid #eee; padding: 60px 20px; te
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
+// Register this page as a valid navigation point for cart back button
+sessionStorage.setItem('lastValidPage', window.location.href);
+
+// Update cart count
+function updateCartCount() {
+    fetch('cart_count.php')
+        .then(r => r.text())
+        .then(count => {
+            const badge = document.getElementById('cartCount');
+            if (badge) {
+                badge.textContent = count;
+                badge.style.display = count > 0 ? 'flex' : 'none';
+            }
+        })
+        .catch(err => console.error('Cart count error:', err));
+}
+
+// Add to cart form submission
+document.getElementById('addToCartForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    formData.append('add_to_cart', '1');
+    
+    fetch('cart.php', {
+        method: 'POST',
+        body: formData,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(r => {
+        if(!r.ok) throw new Error('Server error: ' + r.status);
+        return r.text();
+    })
+    .then(response => {
+        // Clean and normalize the response
+        response = response.trim().toLowerCase();
+        
+        console.log('Cart response received:', response); // Debug logging
+        
+        // Update cart count on success
+        if(response === 'added' || response === 'already_exists') {
+            updateCartCount();
+            
+            // Always show success message (green checkmark)
+            Swal.fire({
+                title: 'Added to Cart!',
+                text: 'Product has been successfully added to your cart.',
+                icon: 'success',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#000',
+                background: '#fff',
+                customClass: {
+                    popup: 'custom-swal-popup',
+                    title: 'custom-swal-title',
+                    htmlContainer: 'custom-swal-text',
+                    confirmButton: 'custom-swal-button'
+                }
+            });
+        } else {
+            // Unexpected response - log for debugging
+            console.error('Unexpected cart response:', response);
+            console.error('Response length:', response.length);
+            console.error('Response bytes:', Array.from(response).map(c => c.charCodeAt(0)));
+            
+            Swal.fire({
+                title: 'Error',
+                text: 'Unexpected response from server. Please try again.',
+                icon: 'error',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#000',
+                background: '#fff',
+                customClass: {
+                    popup: 'custom-swal-popup',
+                    title: 'custom-swal-title',
+                    confirmButton: 'custom-swal-button'
+                }
+            });
+        }
+    })
+    .catch(err => {
+        console.error('Error:', err);
+        Swal.fire({
+            title: 'Network Error',
+            text: 'Could not connect to server.',
+            icon: 'error',
+            confirmButtonText: 'OK',
+            confirmButtonColor: '#000'
+        });
+    });
+});
+
+// Initialize cart count on load
+document.addEventListener('DOMContentLoaded', updateCartCount);
+
 let lastScrollTop = 0;
 const subNav = document.getElementById("subNav");
 const backBtnBar = document.getElementById("backBtnBar");
@@ -383,6 +758,45 @@ function changeQty(val){
     if(newVal < 1) newVal = 1;
     input.value = newVal;
 }
+
+// === Simple image zoom modal ===
+(function(){
+  const popup = document.getElementById('imagePopup');
+  const popupImg = document.getElementById('popupImg');
+  const popupClose = document.getElementById('popupClose');
+
+  if (!popup || !popupImg) return;
+
+  // open modal when any product image clicked
+  document.querySelectorAll('.product-slider img').forEach(img => {
+    img.addEventListener('click', () => {
+      popupImg.src = img.src;
+      popup.classList.add('active');
+      popup.setAttribute('aria-hidden', 'false');
+      // prevent body scroll while modal open
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+    });
+  });
+
+  // close handlers
+  function closePopup() {
+    popup.classList.remove('active');
+    popup.setAttribute('aria-hidden', 'true');
+    popupImg.src = '';
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+  }
+
+  popupClose.addEventListener('click', closePopup);
+  popup.addEventListener('click', (e) => {
+    if (e.target === popup) closePopup(); // click outside image
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closePopup();
+  });
+})();
+
 </script>
 </body>
 </html>

@@ -30,421 +30,497 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: #fff;
     color: #000;
+    padding-top: 120px;
 }
-/* Top Navbar */
+
+/* Top Navbar - Consistent with index.php */
 .top-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
     background: #fff;
-    border-bottom: 2px solid #000;
-    padding: 20px 40px;
+    border-bottom: 1px solid #eee;
+    padding: 10px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    z-index: 1000;
 }
-.top-nav h1 {
+
+.top-nav .logo {
+    flex: 1;
+    text-align: center;
     font-family: 'Playfair Display', serif;
-    font-size: 32px;
-    text-transform: uppercase;
-    letter-spacing: 3px;
+    font-size: 28px;
     font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
 }
-.top-nav h1 a {
+
+.top-nav .logo a {
     color: #000;
     text-decoration: none;
 }
-/* Navigation Right Side */
-.nav-right {
+
+/* Right side icons container */
+.nav-actions {
     display: flex;
     align-items: center;
     gap: 25px;
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
 }
-.nav-icon {
-    color: #000;
-    font-size: 24px;
+
+.icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+}
+
+.nav-icon svg {
+    display: block;
+    width: 22px;
+    height: 23px;
+    stroke: black;
+}
+
+.nav-icon:hover svg {
+    stroke: #555;
+}
+
+.profile-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #4caf50;
+    color: white;
+    font-weight: bold;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
     text-decoration: none;
-    transition: transform 0.2s;
+    overflow: hidden;
 }
-.nav-icon:hover {
-    transform: scale(1.1);
+
+.profile-icon img.profile-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
 }
+
+
 .logout-btn {
     background: #000;
     color: #fff;
-    border: 2px solid #000;
-    padding: 10px 24px;
-    font-size: 14px;
+    border: none;
+    padding: 10px 20px;
+    font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     cursor: pointer;
     transition: all 0.3s;
     text-decoration: none;
     display: inline-block;
+    letter-spacing: 0.5px;
 }
+
 .logout-btn:hover {
-    background: #fff;
-    color: #000;
+    background: #333;
 }
+
+/* Sub Nav for Dashboard */
+.sub-nav {
+    position: fixed;
+    top: 60px;
+    left: 0;
+    width: 100%;
+    background: #fff;
+    border-bottom: 1px solid #ccc;
+    text-align: center;
+    padding: 12px 0;
+    z-index: 999;
+    font-family: 'Playfair Display', serif;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.sub-nav a {
+    margin: 0 20px;
+    text-decoration: none;
+    color: #000;
+    font-size: 16px;
+    transition: color 0.3s;
+}
+
+.sub-nav a:hover {
+    color: #555;
+}
+
 /* Dashboard Container */
 .container {
-    max-width: 1400px;
+    max-width: 1200px;
     margin: 0 auto;
-    padding: 50px 40px;
-    background: #fafafa;
-    min-height: calc(100vh - 80px);
+    padding: 40px 20px;
+    min-height: calc(100vh - 200px);
 }
+
 /* Welcome Banner */
 .welcome-banner {
-    background: linear-gradient(135deg, #fff 0%, #f8f8f8 100%);
-    border: 3px solid #000;
-    padding: 50px 40px;
-    margin-bottom: 50px;
+    background: #f9f9f9;
+    border: 1px solid #e0e0e0;
+    padding: 40px 30px;
+    margin-bottom: 40px;
     text-align: center;
-    box-shadow: 8px 8px 0 #000;
-    position: relative;
 }
-.welcome-banner::before {
-    content: '👋';
-    font-size: 48px;
-    position: absolute;
-    top: 20px;
-    left: 30px;
-}
+
 .welcome-banner h2 { 
     font-family: 'Playfair Display', serif; 
-    font-size: 42px; 
-    margin-bottom: 15px;
+    font-size: 36px; 
+    margin-bottom: 10px;
     font-weight: 700;
     line-height: 1.2;
+    color: #000;
 }
+
 .welcome-banner p { 
-    font-size: 18px; 
-    color: #555;
-    max-width: 600px;
-    margin: 0 auto;
+    font-size: 16px; 
+    color: #666;
     line-height: 1.6;
 }
+
 /* Stats Grid */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 30px;
-    margin-bottom: 60px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 50px;
 }
+
 .stat-card {
-    border: 3px solid #000;
-    padding: 40px 30px;
+    border: 1px solid #e0e0e0;
+    padding: 30px 20px;
     text-align: center;
     transition: all 0.3s ease;
     background: #fff;
-    box-shadow: 5px 5px 0 #000;
-    position: relative;
-    overflow: hidden;
 }
-.stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    background: #000;
-    transform: scaleX(0);
-    transition: transform 0.3s ease;
-}
-.stat-card:hover::before {
-    transform: scaleX(1);
-}
+
 .stat-card:hover { 
-    transform: translateY(-8px);
-    box-shadow: 10px 10px 0 #000;
+    transform: translateY(-4px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border-color: #ccc;
 }
+
 .stat-value { 
-    font-size: 56px; 
+    font-size: 48px; 
     font-weight: 700; 
-    margin-bottom: 15px; 
+    margin-bottom: 10px; 
     color: #000;
     font-family: 'Playfair Display', serif;
     line-height: 1;
 }
+
 .stat-label { 
-    font-size: 13px; 
+    font-size: 12px; 
     text-transform: uppercase; 
     color: #666;
-    font-weight: 700;
-    letter-spacing: 2px;
+    font-weight: 600;
+    letter-spacing: 1px;
 }
+
 /* Orders Section */
 .dashboard-section {
     background: #fff;
-    border: 3px solid #000;
-    padding: 40px;
-    box-shadow: 6px 6px 0 #000;
-    margin-bottom: 50px;
+    border: 1px solid #e0e0e0;
+    padding: 30px;
+    margin-bottom: 40px;
 }
+
 .dashboard-section h3 {
     font-family: 'Playfair Display', serif;
-    font-size: 32px;
-    margin-bottom: 30px;
+    font-size: 28px;
+    margin-bottom: 25px;
     font-weight: 700;
-    padding-bottom: 20px;
-    border-bottom: 2px solid #e0e0e0;
-    display: flex;
-    align-items: center;
-    gap: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e0e0e0;
+    color: #000;
 }
-.dashboard-section h3::before {
-    content: '📦';
-    font-size: 32px;
-}
+
 .recent-orders { 
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 25px; 
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px; 
 }
+
 .order-card {
-    border: 2px solid #000;
-    padding: 25px;
+    border: 1px solid #e0e0e0;
+    padding: 20px;
     transition: all 0.3s ease;
     background: #fff;
     cursor: pointer;
-    box-shadow: 3px 3px 0 #000;
-    position: relative;
 }
-.order-card::after {
-    content: '→';
-    position: absolute;
-    right: 20px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 24px;
-    opacity: 0;
-    transition: all 0.3s;
-}
-.order-card:hover::after {
-    opacity: 1;
-    right: 15px;
-}
+
 .order-card:hover {
-    transform: translateX(4px);
-    box-shadow: 6px 6px 0 #000;
-    background: #fafafa;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border-color: #ccc;
 }
 
 .order-card h4 { 
-    font-size: 20px; 
-    margin-bottom: 15px; 
+    font-size: 18px; 
+    margin-bottom: 12px; 
     color: #000;
     font-weight: 700;
     font-family: 'Playfair Display', serif;
 }
+
 .order-card p { 
-    font-size: 15px; 
-    margin-bottom: 8px; 
-    color: #333;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    font-size: 14px; 
+    margin-bottom: 6px; 
+    color: #555;
+    line-height: 1.5;
 }
+
 .order-card p strong {
     color: #000;
-    min-width: 60px;
+    font-weight: 600;
 }
+
 .order-status {
     display: inline-block;
-    padding: 8px 16px;
-    font-weight: 700;
-    border: 2px solid #000;
+    padding: 6px 12px;
+    font-weight: 600;
+    border: 1px solid #ddd;
     text-transform: uppercase;
-    font-size: 11px;
+    font-size: 10px;
     color: #000;
-    background: #fff;
-    letter-spacing: 1px;
-    margin-top: 12px;
+    background: #f9f9f9;
+    letter-spacing: 0.5px;
+    margin-top: 10px;
 }
-.status-pending { background: #fff3cd; border-color: #000; }
-.status-processing { background: #cfe2ff; border-color: #000; }
-.status-shipped { background: #e7d6f0; border-color: #000; }
-.status-delivered { background: #d1e7dd; border-color: #000; }
-.status-completed { background: #d1e7dd; border-color: #000; }
-.status-cancelled { background: #f8d7da; border-color: #000; }
+
+.status-pending { background: #fff3cd; border-color: #ffc107; color: #856404; }
+.status-processing { background: #cfe2ff; border-color: #0d6efd; color: #084298; }
+.status-shipped { background: #e7d6f0; border-color: #9b59b6; color: #5a357a; }
+.status-delivered { background: #d1e7dd; border-color: #198754; color: #0f5132; }
+.status-completed { background: #d1e7dd; border-color: #198754; color: #0f5132; }
+.status-cancelled { background: #f8d7da; border-color: #dc3545; color: #842029; }
+
 /* Quick Actions */
 .quick-actions {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 25px;
-    margin-top: 50px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 40px;
 }
+
 .action-btn {
-    border: 3px solid #000;
-    padding: 30px 25px;
+    border: 1px solid #000;
+    padding: 20px;
     text-align: center;
     text-decoration: none;
-    font-weight: 700;
+    font-weight: 600;
     color: #000;
     transition: all 0.3s ease;
     background: #fff;
-    font-size: 16px;
+    font-size: 14px;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
-    box-shadow: 4px 4px 0 #000;
-    position: relative;
-    overflow: hidden;
+    letter-spacing: 1px;
+    display: block;
 }
-.action-btn::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: #000;
-    transition: left 0.3s ease;
-    z-index: 0;
-}
-.action-btn span {
-    position: relative;
-    z-index: 1;
-}
-.action-btn:hover::before {
-    left: 0;
-}
+
 .action-btn:hover { 
+    background: #000;
     color: #fff;
-    transform: translateY(-6px);
-    box-shadow: 8px 8px 0 #000;
+    transform: translateY(-2px);
 }
+
 .no-orders {
     text-align: center;
-    padding: 80px 20px;
-    color: #666;
-    font-size: 18px;
+    padding: 60px 20px;
+    color: #999;
+    font-size: 16px;
     background: #f9f9f9;
-    border: 2px dashed #ccc;
+    border: 1px dashed #ddd;
 }
-.no-orders::before {
-    content: '📭';
-    display: block;
-    font-size: 64px;
-    margin-bottom: 20px;
-}
-/* Responsive */
-@media(max-width:768px) {
-    .top-nav {
-        padding: 15px 20px;
-    }
-    .top-nav h1 {
-        font-size: 20px;
-        letter-spacing: 2px;
-    }
-    .nav-right {
-        gap: 15px;
-    }
-    .logout-btn {
-        padding: 8px 16px;
-        font-size: 12px;
-    }
-    .container {
-        padding: 30px 20px;
-    }
-    .welcome-banner {
-        padding: 40px 25px;
-    }
-    .welcome-banner::before {
-        font-size: 32px;
-        top: 15px;
-        left: 15px;
-    }
-    .welcome-banner h2 {
-        font-size: 28px;
-    }
-    .welcome-banner p {
-        font-size: 16px;
-    }
-    .stats-grid {
-        gap: 20px;
-        grid-template-columns: 1fr;
-    }
-    .stat-value {
-        font-size: 44px;
-    }
-    .dashboard-section {
-        padding: 25px 20px;
-    }
-    .dashboard-section h3 {
-        font-size: 24px;
-    }
-    .recent-orders {
-        grid-template-columns: 1fr;
-    }
-    .quick-actions {
-        grid-template-columns: 1fr;
-    }
-}
+
+/* Footer */
 footer {
     background: #000;
-    border-top: 2px solid #000;
-    padding: 50px 20px;
+    border-top: 1px solid #000;
+    padding: 40px 20px;
     text-align: center;
     font-size: 14px;
     color: #fff;
-    margin-top: 80px;
+    margin-top: 60px;
 }
+
 .footer-columns {
     display: flex;
     justify-content: center;
-    gap: 100px;
-    margin-bottom: 30px;
+    gap: 80px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
 }
+
 .footer-columns h4 {
-    font-size: 16px;
-    margin-bottom: 15px;
+    font-size: 14px;
+    margin-bottom: 12px;
     font-weight: 700;
     color: #fff;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
+
 .footer-columns a {
     display: block;
     text-decoration: none;
     color: #ccc;
-    margin: 8px 0;
+    margin: 6px 0;
+    font-size: 13px;
     transition: color 0.3s;
 }
+
 .footer-columns a:hover { color: #fff; }
-.social-icons { margin-top: 20px; }
+
+.social-icons { 
+    margin-top: 20px; 
+}
+
 .social-icons a {
-    margin: 0 12px;
+    margin: 0 10px;
     color: #ccc;
     text-decoration: none;
-    font-size: 16px;
+    font-size: 14px;
     transition: color 0.3s;
 }
+
 .social-icons a:hover { color: #fff; }
+
 footer p {
     margin-top: 20px;
     color: #999;
+    font-size: 12px;
+}
+/* Responsive */
+@media(max-width:768px) {
+    body {
+        padding-top: 110px;
+    }
+    
+    .top-nav .logo {
+        font-size: 20px;
+        letter-spacing: 1px;
+    }
+    
+    .nav-actions {
+        gap: 15px;
+    }
+    
+    .logout-btn {
+        padding: 8px 14px;
+        font-size: 11px;
+    }
+    
+    .sub-nav {
+        padding: 10px 0;
+    }
+    
+    .sub-nav a {
+        margin: 0 10px;
+        font-size: 14px;
+    }
+    
+    .container {
+        padding: 30px 15px;
+    }
+    
+    .welcome-banner {
+        padding: 30px 20px;
+    }
+    
+    .welcome-banner h2 {
+        font-size: 28px;
+    }
+    
+    .welcome-banner p {
+        font-size: 14px;
+    }
+    
+    .stats-grid {
+        gap: 15px;
+        grid-template-columns: 1fr;
+    }
+    
+    .stat-value {
+        font-size: 36px;
+    }
+    
+    .dashboard-section {
+        padding: 20px 15px;
+    }
+    
+    .dashboard-section h3 {
+        font-size: 22px;
+    }
+    
+    .recent-orders {
+        grid-template-columns: 1fr;
+    }
+    
+    .quick-actions {
+        grid-template-columns: 1fr;
+    }
+    
+    .footer-columns {
+        gap: 40px;
+    }
 }
 </style>
 </head>
 <body>
 
 <div class="top-nav">
-    <h1><a href="index.php">Happy Sprays</a></h1>
-    <div class="nav-right">
-        <a href="index.php" class="nav-icon" title="Home">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <div class="logo"><a href="index.php">Happy Sprays</a></div>
+    <div class="nav-actions">
+        <a href="index.php" class="nav-icon icon-btn" title="Home">
+            <svg width="22" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                 <polyline points="9 22 9 12 15 12 15 22"></polyline>
             </svg>
         </a>
-        <a href="cart.php" class="nav-icon" title="Cart">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <a href="cart.php" class="nav-icon icon-btn" title="Cart">
+            <svg width="22" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="9" cy="21" r="1"></circle>
                 <circle cx="20" cy="21" r="1"></circle>
                 <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
             </svg>
         </a>
+<a href="customer_profile.php" class="profile-icon" title="Profile">
+    <?php if (!empty($customer['profile_picture']) && file_exists($customer['profile_picture'])): ?>
+        <img src="<?= htmlspecialchars($customer['profile_picture']) ?>?v=<?= time() ?>" alt="Profile" class="profile-img">
+    <?php else: ?>
+        <?= strtoupper(substr($customer['customer_firstname'], 0, 1)) ?>
+    <?php endif; ?>
+</a>
+
         <a href="customer_logout.php" class="logout-btn">Logout</a>
     </div>
+</div>
+
+<div class="sub-nav">
+    <a href="customer_dashboard.php">Dashboard</a>
+    <a href="my_orders.php">My Orders</a>
+    <a href="index.php">Shop</a>
 </div>
 
 <div class="container">
@@ -468,36 +544,35 @@ footer p {
         </div>
     </div>
 
-<div class="dashboard-section">
-    <h3>Recent Orders</h3>
-    <?php if(empty($recentOrders)): ?>
-        <div class="no-orders">No orders yet. Start shopping to see your orders here!</div>
-    <?php else: ?>
-        <div class="recent-orders">
-            <?php foreach($recentOrders as $order): ?>
-                <a href="order_status.php?id=<?= $order['order_id'] ?>" style="text-decoration:none;">
-                    <div class="order-card">
-                        <h4>Order #<?= str_pad($order['order_id'], 6, '0', STR_PAD_LEFT) ?></h4>
-                        <p><strong>Total:</strong> ₱<?= number_format($order['total_amount'],2) ?></p>
-                        <p><strong>Date:</strong> <?= date('M d, Y', strtotime($order['o_created_at'])) ?></p>
-                        <span class="order-status status-<?= strtolower(str_replace(' ', '-', $order['order_status'])) ?>">
-                            <?= ucfirst($order['order_status']) ?>
-                        </span>
-                        <?php if(!empty($order['gcash_proof'])): ?>
-                            <p style="margin-top:10px;"><strong>📎 Payment Proof Submitted</strong></p>
-                        <?php endif; ?>
-                    </div>
-                </a>
-            <?php endforeach; ?>
-        </div>
-    <?php endif; ?>
-</div>
-
-
+    <div class="dashboard-section">
+        <h3>Recent Orders</h3>
+        <?php if(empty($recentOrders)): ?>
+            <div class="no-orders">No orders yet. Start shopping to see your orders here!</div>
+        <?php else: ?>
+            <div class="recent-orders">
+                <?php foreach($recentOrders as $order): ?>
+                    <a href="order_details.php?id=<?= $order['order_id'] ?>" style="text-decoration:none;">
+                        <div class="order-card">
+                            <h4>Order #<?= str_pad($order['order_id'], 6, '0', STR_PAD_LEFT) ?></h4>
+                            <p><strong>Total:</strong> ₱<?= number_format($order['total_amount'],2) ?></p>
+                            <p><strong>Date:</strong> <?= date('M d, Y', strtotime($order['o_created_at'])) ?></p>
+                            <span class="order-status status-<?= strtolower(str_replace(' ', '-', $order['order_status'])) ?>">
+                                <?= ucfirst($order['order_status']) ?>
+                            </span>
+                            <?php if(!empty($order['gcash_proof'])): ?>
+                                <p style="margin-top:10px; font-size: 12px; color: #666;">Payment Proof Submitted</p>
+                            <?php endif; ?>
+                        </div>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </div>
 
     <div class="quick-actions">
-        <a href="index.php" class="action-btn"><span>Browse Products</span></a>
-        <a href="cart.php" class="action-btn"><span>View Cart</span></a>
+        <a href="index.php" class="action-btn">Browse Products</a>
+        <a href="cart.php" class="action-btn">View Cart</a>
+        <a href="my_orders.php" class="action-btn">All Orders</a>
     </div>
 </div>
 

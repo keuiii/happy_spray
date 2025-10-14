@@ -9,8 +9,15 @@ $db = Database::getInstance();
 $gender_filter = isset($_GET['gender']) ? $_GET['gender'] : '';
 $search_query = isset($_GET['search']) ? $_GET['search'] : '';
 
-// Use centralized method from database.php
-$products = $db->getPerfumes($gender_filter, $search_query);
+// Pagination setup
+$itemsPerPage = 10;
+$currentPage = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$offset = ($currentPage - 1) * $itemsPerPage;
+
+// Get total count for pagination
+$totalProducts = count($db->getPerfumes($gender_filter, $search_query));
+$products = $db->getPerfumes($gender_filter, $search_query, $itemsPerPage, $offset);
+$totalPages = ceil($totalProducts / $itemsPerPage);
 
 // Poster images
 $posters = ["poster1.png","poster2.png", "poster3.png"];
@@ -329,6 +336,38 @@ h1 {text-align:center; margin:30px 0;}
 
 .qv-img-box:hover .quick-view-trigger {
   opacity: 1;
+}
+
+/* Out of Stock Overlay */
+.out-of-stock-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity .25s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.product-card:hover .out-of-stock-overlay {
+  opacity: 1;
+}
+
+.product-card.out-of-stock {
+  opacity: 0.85;
+}
+
+.product-card.out-of-stock img {
+  filter: grayscale(20%);
 }
 
 .qv-backdrop[hidden] {
@@ -732,53 +771,61 @@ h1 {text-align:center; margin:30px 0;}
 
 /* Footer */
 footer {
-  background: #e9e9e9;
-  border-top: 1px solid #eee;
-  padding: 40px 20px;
-  text-align: center;
-  font-size: 14px;
-  color: #555;
-  margin-top: 60px;
+    background: #000;
+    border-top: 1px solid #000;
+    padding: 50px 20px;
+    text-align: center;
+    font-size: 14px;
+    color: #fff;
+    margin-top: 60px;
 }
 
 .footer-columns {
-  display: flex;
-  justify-content: center;
-  gap: 100px;
-  margin-bottom: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 80px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
 }
 
 .footer-columns h4 {
-  font-size: 16px;
-  margin-bottom: 10px;
-  font-weight: bold;
-  color: #000;
+    font-size: 14px;
+    margin-bottom: 12px;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }
 
 .footer-columns a {
-  display: block;
-  text-decoration: none;
-  color: #555;
-  margin: 5px 0;
+    display: block;
+    text-decoration: none;
+    color: #ccc;
+    margin: 6px 0;
+    font-size: 13px;
+    transition: color 0.3s;
 }
 
-.footer-columns a:hover {
-  color: #000;
-}
+.footer-columns a:hover { color: #fff; }
 
-.social-icons {
-  margin-top: 15px;
+.social-icons { 
+    margin-top: 20px; 
 }
 
 .social-icons a {
-  margin: 0 8px;
-  color: #555;
-  text-decoration: none;
-  font-size: 18px;
+    margin: 0 10px;
+    color: #ccc;
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.3s;
 }
 
-.social-icons a:hover {
-  color: #000;
+.social-icons a:hover { color: #fff; }
+
+footer p {
+    margin-top: 20px;
+    color: #999;
+    font-size: 12px;
 }
 
 /* Scroll Animation */
@@ -792,9 +839,119 @@ footer {
   opacity: 1;
   transform: translateY(0);
 }
+
+/* Custom SweetAlert Styling */
+.custom-swal-popup {
+  font-family: 'Poppins', 'Segoe UI', sans-serif !important;
+  border: 2px solid #000 !important;
+  border-radius: 16px !important;
+  padding: 30px !important;
+}
+
+.custom-swal-title {
+  font-family: 'Playfair Display', serif !important;
+  color: #000 !important;
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  margin-bottom: 10px !important;
+}
+
+.custom-swal-text {
+  color: #333 !important;
+  font-size: 16px !important;
+  line-height: 1.6 !important;
+}
+
+.custom-swal-button {
+  background: #000 !important;
+  color: #fff !important;
+  border: 2px solid #000 !important;
+  border-radius: 8px !important;
+  padding: 12px 30px !important;
+  font-weight: 600 !important;
+  font-size: 15px !important;
+  transition: all 0.3s !important;
+}
+
+.custom-swal-button:hover {
+  background: #fff !important;
+  color: #000 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+#snow-container {
+  position: fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  pointer-events:none; /* lets you click through */
+  z-index:9999;
+}
+
+.snowflake {
+  position: absolute;
+  top: -10px;
+  color: #fff;
+  font-size: 1em;
+  user-select: none;
+  z-index: 9999;
+  animation-name: fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes fall {
+  0% { transform: translateY(0px); }
+  100% { transform: translateY(100vh); }
+}
+
+/* Pagination Styles */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin: 50px auto 60px;
+    padding: 20px 0;
+}
+
+.page-btn {
+    padding: 10px 16px;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+    color: #333;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.page-btn:hover {
+    background: #f5f5f5;
+    border-color: #000;
+    color: #000;
+    transform: translateY(-2px);
+}
+
+.page-btn.active {
+    background: #000;
+    color: #fff;
+    border-color: #000;
+}
+
+.page-ellipsis {
+    padding: 10px 8px;
+    color: #999;
+}
 </style>
 </head>
 <body>
+
+<div id="snow-container"></div>
 
 <div class="top-nav">
   <div class="logo">Happy Sprays</div>
@@ -853,10 +1010,12 @@ footer {
 <!-- Hero Slider -->
 <div class="hero-slider">
     <div class="slides">
-        <img src="images/ss.png" class="slide active" alt="Banner 1">
+        <img src="images/ss5.png" class="slide active" alt="Banner 1">
+          <img src="images/ss.png" class="slide" alt="Banner 5">
         <img src="images/ss2.png" class="slide" alt="Banner 2">
         <img src="images/ss3.png" class="slide" alt="Banner 3">
         <img src="images/ss4.png" class="slide" alt="Banner 4">
+        
     </div>
     <button class="prev">&#8212;</button>
     <button class="next">&#8212;</button>
@@ -924,11 +1083,14 @@ $count = 0;
 foreach($products as $prod){
     // gamitin file_path directly
    $imagePath = !empty($prod['file_path']) ? $prod['file_path'] : "images/default.jpg";
+   $isOutOfStock = isset($prod['stock']) && $prod['stock'] <= 0;
+   $outOfStockClass = $isOutOfStock ? 'out-of-stock' : '';
 
 echo "
-<div class='product-card scroll-animate'>
+<div class='product-card scroll-animate {$outOfStockClass}'>
   <div class='qv-img-box'>
     <img src='{$imagePath}' alt='".htmlspecialchars($prod['perfume_name'], ENT_QUOTES)."'>
+    ".($isOutOfStock ? "<div class='out-of-stock-overlay'>OUT OF STOCK</div>" : "
     <button
       class='quick-view-trigger'
       type='button'
@@ -937,7 +1099,7 @@ echo "
       data-price='{$prod['perfume_price']}'
       data-image='{$imagePath}'
       data-description=\"".htmlspecialchars($prod['perfume_desc'], ENT_QUOTES)."\"
-    >Quick View</button>
+    >Quick View</button>")."
   </div>
   <h2>".htmlspecialchars($prod['perfume_name'])."</h2>
   <p>₱{$prod['perfume_price']}</p>
@@ -962,6 +1124,29 @@ echo "
 }
 ?>
 </div>
+
+<?php if ($totalPages > 1): ?>
+    <div class="pagination">
+        <?php if ($currentPage > 1): ?>
+            <a href="?page=<?= $currentPage - 1 ?><?= !empty($gender_filter) ? '&gender=' . urlencode($gender_filter) : '' ?><?= !empty($search_query) ? '&search=' . urlencode($search_query) : '' ?>" class="page-btn">Previous</a>
+        <?php endif; ?>
+        
+        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+            <?php if ($i == 1 || $i == $totalPages || abs($i - $currentPage) <= 2): ?>
+                <a href="?page=<?= $i ?><?= !empty($gender_filter) ? '&gender=' . urlencode($gender_filter) : '' ?><?= !empty($search_query) ? '&search=' . urlencode($search_query) : '' ?>" 
+                   class="page-btn <?= $i == $currentPage ? 'active' : '' ?>">
+                    <?= $i ?>
+                </a>
+            <?php elseif (abs($i - $currentPage) == 3): ?>
+                <span class="page-ellipsis">...</span>
+            <?php endif; ?>
+        <?php endfor; ?>
+        
+        <?php if ($currentPage < $totalPages): ?>
+            <a href="?page=<?= $currentPage + 1 ?><?= !empty($gender_filter) ? '&gender=' . urlencode($gender_filter) : '' ?><?= !empty($search_query) ? '&search=' . urlencode($search_query) : '' ?>" class="page-btn">Next</a>
+        <?php endif; ?>
+    </div>
+<?php endif; ?>
 
 
 <!-- Footer -->
@@ -989,6 +1174,9 @@ echo "
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
+// Register this page as a valid navigation point for cart back button
+sessionStorage.setItem('lastValidPage', window.location.href);
+
 // Sub nav scroll hide/show
 let lastScrollTop = 0;
 const subNav = document.getElementById("subNav");
@@ -1154,18 +1342,70 @@ if(searchInput){
       body:fd,
       headers:{'X-Requested-With':'XMLHttpRequest'}
     })
-    .then(r=>r.text())
+    .then(r=>{
+      if(!r.ok) throw new Error('Server error: ' + r.status);
+      return r.text();
+    })
     .then(tx=>{
-      if(tx.trim()==='success'){
+      // Clean and normalize the response
+      tx = tx.trim().toLowerCase();
+      
+      console.log('Cart response received:', tx); // Debug logging
+      
+      // Check for valid responses
+      if(tx === 'added' || tx === 'already_exists'){
+        // Update cart count first
         updateCartCount();
+        
+        // Close the modal
         backdrop.classList.remove('show');
         setTimeout(()=>backdrop.hidden=true,250);
-        Swal.fire({title:'Added to cart!', icon:'success', timer:1200, showConfirmButton:false});
+        
+        // Always show success message (green checkmark)
+        Swal.fire({
+          title: 'Added to Cart!',
+          text: 'Product has been successfully added to your cart.',
+          icon: 'success',
+          confirmButtonText: 'OK',
+          confirmButtonColor: '#000',
+          background: '#fff',
+          customClass: {
+            popup: 'custom-swal-popup',
+            title: 'custom-swal-title',
+            htmlContainer: 'custom-swal-text',
+            confirmButton: 'custom-swal-button'
+          }
+        });
       } else {
-        console.log('Cart response:',tx);
-        alert('Something went wrong adding to cart.');
+        // Unexpected response - log for debugging
+        console.error('Unexpected cart response:', tx);
+        console.error('Response length:', tx.length);
+        console.error('Response bytes:', Array.from(tx).map(c => c.charCodeAt(0)));
+        
+        Swal.fire({
+          title: 'Error',
+          text: 'Unexpected response from server. Please try again.',
+          icon: 'error',
+          confirmButtonText: 'OK',
+          confirmButtonColor: '#000',
+          background: '#fff',
+          customClass: {
+            popup: 'custom-swal-popup',
+            title: 'custom-swal-title',
+            confirmButton: 'custom-swal-button'
+          }
+        });
       }
-    }).catch(()=>alert('Network error.'));
+    }).catch((err)=>{
+      console.error('Cart fetch error:', err);
+      Swal.fire({
+        title: 'Network Error',
+        text: 'Could not connect to server. Please check your connection.',
+        icon: 'error',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#000'
+      });
+    });
   });
 
   // Initialize cart count on load
@@ -1264,6 +1504,19 @@ function removeTyping() {
 expandChat.addEventListener("click", () => {
   chatBox.classList.toggle("expanded");
 });
+
+const snowContainer = document.getElementById('snow-container');
+const snowCount = 50; // number of snowflakes
+
+for (let i=0; i<snowCount; i++) {
+  const snow = document.createElement('div');
+  snow.className = 'snowflake';
+  snow.style.left = Math.random() * window.innerWidth + 'px';
+  snow.style.animationDuration = (3 + Math.random()*5) + 's';
+  snow.style.fontSize = (10 + Math.random()*15) + 'px';
+  snow.textContent = '❄';
+  snowContainer.appendChild(snow);
+}
 </script>
 
 </body>

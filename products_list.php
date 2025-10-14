@@ -27,7 +27,18 @@ if (isset($_GET['delete'])) {
 $sexFilter = isset($_GET['sex']) ? $_GET['sex'] : null;
 $searchQuery = isset($_GET['search']) ? $_GET['search'] : null;
 
-$products = $db->getPerfumes($sexFilter, $searchQuery);
+// Pagination setup
+$itemsPerPage = 10;
+$currentPage = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$offset = ($currentPage - 1) * $itemsPerPage;
+
+// Get total count for pagination
+$totalProducts = count($db->getPerfumes($sexFilter, $searchQuery));
+$products = $db->getPerfumes($sexFilter, $searchQuery, $itemsPerPage, $offset);
+$totalPages = ceil($totalProducts / $itemsPerPage);
+
+// Get unread messages count for badge
+$unreadCount = $db->getUnreadContactCount();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -56,9 +67,19 @@ body {
 }
 
 .sidebar-header {
-    padding: 35px 30px;
+    padding: 20px 20px;
     border-bottom: 1px solid #e8e8e8;
     background: #fff;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.sidebar-header img {
+    max-width: 120px;
+    height: auto;
+    display: block;
 }
 
 .sidebar-header h2 {
@@ -75,7 +96,7 @@ body {
 }
 
 .menu-item {
-    padding: 16px 30px;
+    padding: 16px 15px;
     color: #666;
     text-decoration: none;
     display: flex;
@@ -84,8 +105,9 @@ body {
     transition: all 0.3s;
     font-weight: 500;
     font-size: 15px;
-    margin: 4px 15px;
+    margin: 4px 8px;
     border-radius: 10px;
+    position: relative;
 }
 
 .menu-item::before {
@@ -107,15 +129,32 @@ body {
     content: '●';
 }
 
+.unread-badge {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #ef4444;
+    color: #fff;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+}
+
 .sidebar-footer {
     position: absolute;
     bottom: 30px;
     width: 100%;
-    padding: 0 15px;
+    padding: 0 8px;
 }
 
 .logout-item {
-    padding: 16px 30px;
+    padding: 16px 15px;
     color: #d32f2f;
     text-decoration: none;
     display: flex;
@@ -140,16 +179,17 @@ body {
 }
 
 .top-bar {
-    background: transparent;
-    padding: 0;
+    background: #fff;
+    padding: 30px 35px;
+    border-radius: 16px;
     margin-bottom: 30px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
 .top-bar-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 25px;
 }
 
 .page-title {
@@ -407,23 +447,63 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* Pagination Styles */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 30px;
+    padding: 20px 0;
+}
+
+.page-btn {
+    padding: 10px 16px;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+    color: #333;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.page-btn:hover {
+    background: #f5f5f5;
+    border-color: #000;
+    color: #000;
+}
+
+.page-btn.active {
+    background: #000;
+    color: #fff;
+    border-color: #000;
+}
+
+.page-ellipsis {
+    padding: 10px 8px;
+    color: #999;
+}
 </style>
 </head>
 <body>
 
 <div class="sidebar">
     <div class="sidebar-header">
-        <h2>Happy Sprays</h2>
+        <img src="images/logoo.png" alt="Happy Sprays">
     </div>
     <nav class="sidebar-menu">
         <a href="admin_dashboard.php" class="menu-item">Dashboard</a>
-        <a href="orders.php" class="menu-item">orders</a>
+        <a href="orders.php" class="menu-item">Orders</a>
         <a href="products_list.php" class="menu-item active">Products</a>
         <a href="users.php" class="menu-item">Customers</a>
-        <a href="admin_contact_messages.php" class="menu-item">Messages</a>
+        <a href="admin_contact_messages.php" class="menu-item">Messages<?php if ($unreadCount > 0): ?><span class="unread-badge"><?= $unreadCount ?></span><?php endif; ?></a>
     </nav>
-            <div class="sidebar-footer">
-            <a href="customer_logout.php" class="logout-item">
+    <div class="sidebar-footer">
+        <a href="customer_logout.php" class="logout-item">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                     <polyline points="16 17 21 12 16 7"></polyline>
@@ -517,6 +597,29 @@ body {
                 </div>
             <?php endforeach; ?>
         </div>
+
+        <?php if ($totalPages > 1): ?>
+            <div class="pagination">
+                <?php if ($currentPage > 1): ?>
+                    <a href="?page=<?= $currentPage - 1 ?><?= !empty($sexFilter) ? '&sex=' . urlencode($sexFilter) : '' ?><?= !empty($searchQuery) ? '&search=' . urlencode($searchQuery) : '' ?>" class="page-btn">Previous</a>
+                <?php endif; ?>
+                
+                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                    <?php if ($i == 1 || $i == $totalPages || abs($i - $currentPage) <= 2): ?>
+                        <a href="?page=<?= $i ?><?= !empty($sexFilter) ? '&sex=' . urlencode($sexFilter) : '' ?><?= !empty($searchQuery) ? '&search=' . urlencode($searchQuery) : '' ?>" 
+                           class="page-btn <?= $i == $currentPage ? 'active' : '' ?>">
+                            <?= $i ?>
+                        </a>
+                    <?php elseif (abs($i - $currentPage) == 3): ?>
+                        <span class="page-ellipsis">...</span>
+                    <?php endif; ?>
+                <?php endfor; ?>
+                
+                <?php if ($currentPage < $totalPages): ?>
+                    <a href="?page=<?= $currentPage + 1 ?><?= !empty($sexFilter) ? '&sex=' . urlencode($sexFilter) : '' ?><?= !empty($searchQuery) ? '&search=' . urlencode($searchQuery) : '' ?>" class="page-btn">Next</a>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
     <?php endif; ?>
 </div>
 

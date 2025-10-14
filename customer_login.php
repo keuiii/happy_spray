@@ -38,6 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     elseif ($usernameOrEmail === 'admin' && $password === 'admin123') {
         $_SESSION['role'] = 'admin';
         $_SESSION['admin_username'] = 'admin';
+        $_SESSION['admin_id'] = 3;
+        
         header("Location: admin_dashboard.php");
         exit;
     } 
@@ -137,6 +139,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 $_SESSION['customer_firstname'] = $customer['customer_firstname'];
                 $_SESSION['customer_lastname'] = $customer['customer_lastname'];
                 
+                // Load saved cart from database
+                $db->loadCartFromDatabase();
+                
                 // Redirect
                 $redirect = isset($_GET['redirect']) ? $_GET['redirect'] : 'index.php';
                 header("Location: " . $redirect);
@@ -157,13 +162,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Login - Happy Sprays</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 * {margin:0; padding:0; box-sizing:border-box;}
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #fff;
-    color: #111;
+    font-family: 'Poppins', sans-serif;
+    background: #f5f5f5;
+    color: #333;
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -173,119 +178,168 @@ body {
 
 .login-container {
     background: #fff;
-    border-radius: 15px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08);
     overflow: hidden;
-    max-width: 900px;
+    max-width: 1000px;
     width: 100%;
     display: grid;
     grid-template-columns: 1fr 1fr;
+    border: 2px solid #000;
 }
 
 .login-left {
-    background: #fff;
-    border-right: 1px solid #eee;
-    padding: 60px 40px;
-    color: #111;
+    background: linear-gradient(135deg, #000 0%, #333 100%);
+    padding: 80px 50px;
+    color: #fff;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.login-left::before {
+    content: '';
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 50%;
+    top: -100px;
+    right: -100px;
+}
+
+.login-left::after {
+    content: '';
+    position: absolute;
+    width: 200px;
+    height: 200px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 50%;
+    bottom: -50px;
+    left: -50px;
 }
 
 .login-left h1 {
     font-family: 'Playfair Display', serif;
-    font-size: 36px;
+    font-size: 48px;
     margin-bottom: 20px;
     text-transform: uppercase;
-    letter-spacing: 2px;
-    color: #111;
+    letter-spacing: 3px;
+    color: #fff;
+    position: relative;
+    z-index: 1;
+}
+
+.login-left p {
+    font-size: 16px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.9);
+    position: relative;
+    z-index: 1;
 }
 
 .login-right {
-    background: #f9f9f9;
-    padding: 60px 40px;
-    max-height: 90vh;
-    overflow-y: auto;
+    background: #fff;
+    padding: 80px 50px;
 }
 
 .login-header {
-    margin-bottom: 30px;
+    margin-bottom: 40px;
 }
 
 .login-header h2 {
     font-family: 'Playfair Display', serif;
-    font-size: 28px;
-    margin-bottom: 10px;
-    color: #111;
+    font-size: 32px;
+    margin-bottom: 8px;
+    color: #000;
 }
 
 .login-header p {
-    color: #555;
+    color: #666;
+    font-size: 15px;
 }
 
 .error-message {
     background: #ffebee;
     color: #c62828;
-    padding: 12px;
-    border-radius: 5px;
-    margin-bottom: 20px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    margin-bottom: 24px;
     border-left: 4px solid #c62828;
+    font-size: 14px;
 }
 
 .success-message {
     background: #e8f5e9;
     color: #2e7d32;
-    padding: 12px;
-    border-radius: 5px;
-    margin-bottom: 20px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    margin-bottom: 24px;
     border-left: 4px solid #2e7d32;
+    font-size: 14px;
 }
 
 .form-group {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
 }
 
 .form-group label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     font-weight: 600;
-    color: #222;
+    color: #000;
+    font-size: 14px;
 }
 
 .form-group input {
     width: 100%;
-    padding: 12px 15px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    font-size: 14px;
-    transition: 0.3s;
-    background: #fff;
+    padding: 14px 18px;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    font-size: 15px;
+    transition: all 0.3s;
+    background: #fafafa;
+    font-family: 'Poppins', sans-serif;
 }
 
 .form-group input:focus {
     outline: none;
-    border-color: #111;
+    border-color: #000;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
 }
 
 .form-options {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 28px;
+    font-size: 14px;
 }
 
 .remember-me {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.remember-me input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
 }
 
 .forgot-link {
     color: #000;
     text-decoration: none;
     font-size: 14px;
+    font-weight: 500;
+    transition: 0.3s;
 }
 
 .forgot-link:hover {
@@ -294,51 +348,101 @@ body {
 
 .login-btn {
     width: 100%;
-    padding: 14px;
-    background: #111;
+    padding: 16px;
+    background: #000;
     color: #fff;
-    border: none;
-    border-radius: 8px;
+    border: 2px solid #000;
+    border-radius: 12px;
     font-size: 16px;
     font-weight: 600;
     cursor: pointer;
-    transition: 0.3s;
+    transition: all 0.3s;
+    font-family: 'Poppins', sans-serif;
 }
 
 .login-btn:hover {
-    background: #333;
-    transform: translateY(-1px);
+    background: #fff;
+    color: #000;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 }
 
 .register-link {
     text-align: center;
-    margin-top: 20px;
-    color: #555;
+    margin-top: 28px;
+    color: #666;
+    font-size: 15px;
 }
 
 .register-link a {
     color: #000;
     text-decoration: none;
     font-weight: 600;
+    transition: 0.3s;
 }
 
 .register-link a:hover {
     text-decoration: underline;
 }
 
+.password-wrapper {
+    position: relative;
+}
+
+.password-wrapper input {
+    padding-right: 50px;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #666;
+    font-size: 22px;
+    user-select: none;
+    transition: color 0.3s;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toggle-password:hover {
+    color: #000;
+}
+
+.eye-icon {
+    width: 24px;
+    height: 24px;
+    display: inline-block;
+}
+
 @media (max-width: 768px) {
+    body {
+        padding: 20px;
+    }
+    
     .login-container {
         grid-template-columns: 1fr;
     }
     
     .login-left {
-        padding: 40px 30px;
-        border-right: none;
-        border-bottom: 1px solid #eee;
+        padding: 60px 40px;
+    }
+    
+    .login-left h1 {
+        font-size: 36px;
     }
     
     .login-right {
-        padding: 40px 30px;
+        padding: 60px 40px;
+    }
+    
+    .login-header h2 {
+        font-size: 28px;
     }
 }
 
@@ -380,11 +484,19 @@ body {
             
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" 
-                       id="password" 
-                       name="password" 
-                       placeholder="Enter your password"
-                       required>
+                <div class="password-wrapper">
+                    <input type="password" 
+                           id="password" 
+                           name="password" 
+                           placeholder="Enter your password"
+                           required>
+                    <span class="toggle-password" onclick="togglePassword('password', this)">
+                        <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                        </svg>
+                    </span>
+                </div>
             </div>
             
             <div class="form-options">
@@ -403,6 +515,29 @@ body {
         </form>
     </div>
 </div>
+
+<script>
+function togglePassword(fieldId, iconElement) {
+    const field = document.getElementById(fieldId);
+    const svg = iconElement.querySelector('svg');
+    
+    if (field.type === 'password') {
+        field.type = 'text';
+        // Eye (visible) - password is now shown
+        svg.innerHTML = `
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+        `;
+    } else {
+        field.type = 'password';
+        // Eye with slash (hidden) - password is now hidden
+        svg.innerHTML = `
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+        `;
+    }
+}
+</script>
 
 </body>
 </html>

@@ -1,83 +1,24 @@
 <?php
-$reviews = [
-    [
-        'text' => 'I\'ve tried countless tea brands, but nothing compares to this one. Every sip feels like a warm hug! My mornings are incomplete without it.',
-        'name' => 'Olivia Richardson',
-        'location' => 'New York, USA',
-        'avatar' => 'r1.png',
-        'color' => '#ffcdd2'
-    ],
-    [
-        'text' => 'As a tea lover, I appreciate the rich flavors and calming ingredients in this blend. It has become my go-to for relaxation after a long day!',
-        'name' => 'Sophia Mitchell',
-        'location' => 'London, UK',
-        'avatar' => 'r2.png',
-        'color' => '#ffe0b2'
-    ],
-    [
-        'text' => 'I never knew tea could taste this good! The flavors are so rich and soothing. Plus, the packaging is beautiful—perfect for gifting too!',
-        'name' => 'Aisha Khan',
-        'location' => 'London, UK',
-        'avatar' => 'r3.png',
-        'color' => '#fff9c4'
-    ],
-    [
-        'text' => 'The variety of blends is amazing! Whether I need a morning energy boost or a calming bedtime tea, this brand has it all. Highly recommend!',
-        'name' => 'Emily Sanders',
-        'location' => 'Sydney, Australia',
-        'avatar' => 'r4.png',
-        'color' => '#c8e6c9'
-    ],
-    [
-        'text' => 'This tea has changed my daily routine for the better! The detox blend helps me feel refreshed and energized. Love the natural ingredients!',
-        'name' => 'Priya Deshmukh',
-        'location' => 'Mumbai, India',
-        'avatar' => 'r5.png',
-        'color' => '#e1bee7'
-    ],
-    [
-        'text' => 'I\'m obsessed with the flavors! The tea gives me the perfect pick-me-up without the jitters. A must-try for all tea enthusiasts!',
-        'name' => 'Mia Lawrence',
-        'location' => 'Toronto, Canada',
-        'avatar' => 'r6.png',
-        'color' => '#f8bbd0'
-    ],
-    [
-        'text' => 'Absolutely delightful! The quality is outstanding, and I love how each blend has its unique taste and aroma. My new favorite tea!',
-        'name' => 'Chen Wei',
-        'location' => 'Singapore',
-        'avatar' => 'r7.png',
-        'color' => '#b3e5fc'
-    ],
-    [
-        'text' => 'Perfect tea for any time of day! The flavors are perfectly balanced, and I appreciate the sustainable packaging. Highly impressed!',
-        'name' => 'Isabella Garcia',
-        'location' => 'Madrid, Spain',
-        'avatar' => 'r8.png',
-        'color' => '#ffccbc'
-    ],
-    [
-        'text' => 'This brand exceeded my expectations! The herbal blends are incredibly soothing, and they\'ve helped me sleep better at night. Love it!',
-        'name' => 'Sarah Johnson',
-        'location' => 'Los Angeles, USA',
-        'avatar' => 'r9.png',
-        'color' => '#d1c4e9'
-    ],
-    [
-        'text' => 'The best tea I\'ve ever had! Each cup feels like a mini spa experience. The aroma alone is worth it. Can\'t recommend enough!',
-        'name' => 'Yuki Tanaka',
-        'location' => 'Tokyo, Japan',
-        'avatar' => 'r10.png',
-        'color' => '#c5e1a5'
-    ],
-    [
-        'text' => 'I bought this as a gift and ended up buying more for myself! The taste is phenomenal, and it makes me feel so relaxed. A+!',
-        'name' => 'Emma Brown',
-        'location' => 'Melbourne, Australia',
-        'avatar' => 'r11.png',
-        'color' => '#ffe082'
-    ]
-];
+session_start();
+require_once 'classes/database.php';
+
+$db = Database::getInstance();
+
+// Get all reviews from database
+$allReviews = $db->getAllReviews();
+
+// Add color palette for avatars
+$colors = ['#ffcdd2', '#ffe0b2', '#fff9c4', '#c8e6c9', '#e1bee7', '#f8bbd0', '#b3e5fc', '#ffccbc', '#d1c4e9', '#c5e1a5', '#ffe082', '#f0f4c3'];
+
+// Pagination setup
+$itemsPerPage = 10;
+$currentPage = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$totalReviews = count($allReviews);
+$totalPages = ceil($totalReviews / $itemsPerPage);
+$offset = ($currentPage - 1) * $itemsPerPage;
+
+// Get reviews for current page
+$paginatedReviews = array_slice($allReviews, $offset, $itemsPerPage);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -148,6 +89,46 @@ header p {
 .review-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.product-info {
+  flex: 1;
+}
+
+.product-info h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
+  margin: 0 0 4px 0;
+}
+
+.product-info p {
+  font-size: 13px;
+  color: #666;
+  margin: 0;
+}
+
+.star-rating {
+  display: flex;
+  gap: 2px;
+}
+
+.star {
+  color: #ddd;
+  font-size: 18px;
+}
+
+.star.filled {
+  color: #FFD700;
 }
 
 .review-text {
@@ -285,6 +266,48 @@ footer p {
     }
 }
 
+/* Pagination Styles */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin: 30px auto 60px;
+    padding: 20px 0;
+    max-width: 1200px;
+}
+
+.page-btn {
+    padding: 10px 16px;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+    color: #333;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.page-btn:hover {
+    background: #f5f5f5;
+    border-color: #000;
+    color: #000;
+    transform: translateY(-2px);
+}
+
+.page-btn.active {
+    background: #000;
+    color: #fff;
+    border-color: #000;
+}
+
+.page-ellipsis {
+    padding: 10px 8px;
+    color: #999;
+}
+
   </style>
 </head>
 <body>
@@ -301,19 +324,79 @@ footer p {
   </header>
 
   <div class="reviews-container">
-    <?php foreach ($reviews as $review): ?>
-      <div class="review-card">
-        <p class="review-text">"<?= htmlspecialchars($review['text']) ?>"</p>
-        <div class="reviewer-info">
-          <img src="images/<?= $review['avatar'] ?>" alt="<?= htmlspecialchars($review['name']) ?>" class="avatar">
-          <div class="reviewer-details">
-            <div class="reviewer-name"><?= htmlspecialchars($review['name']) ?></div>
-            <div class="reviewer-location"><?= htmlspecialchars($review['location']) ?></div>
+    <?php if (empty($paginatedReviews)): ?>
+      <div class="empty-reviews">
+        <p style="text-align: center; color: #999; padding: 60px 20px; font-size: 18px;">
+          No reviews yet. Be the first to share your experience!
+        </p>
+      </div>
+    <?php else: ?>
+      <?php foreach ($paginatedReviews as $index => $review): 
+        $customerName = htmlspecialchars($review['customer_firstname'] . ' ' . $review['customer_lastname']);
+        $rating = $review['rating'] ?? 5;
+        $comment = htmlspecialchars($review['comment']);
+        $productName = htmlspecialchars($review['perfume_name'] ?? 'Product');
+        $productBrand = htmlspecialchars($review['perfume_brand'] ?? '');
+        $reviewDate = date('M d, Y', strtotime($review['created_at']));
+        $colorIndex = $index % count($colors);
+        $avatarColor = $colors[$colorIndex];
+        $initial = strtoupper(substr($review['customer_firstname'], 0, 1));
+      ?>
+        <div class="review-card">
+          <div class="review-header">
+            <div class="product-info">
+              <strong><?= $productName ?></strong>
+              <?php if ($productBrand): ?>
+                <span class="brand"> by <?= $productBrand ?></span>
+              <?php endif; ?>
+            </div>
+            <div class="star-rating">
+              <?php for ($i = 1; $i <= 5; $i++): ?>
+                <span class="star <?= $i <= $rating ? 'filled' : '' ?>">★</span>
+              <?php endfor; ?>
+            </div>
+          </div>
+          <p class="review-text">"<?= $comment ?>"</p>
+          <div class="reviewer-info">
+            <?php if (!empty($review['profile_picture']) && file_exists($review['profile_picture'])): ?>
+              <img src="<?= htmlspecialchars($review['profile_picture']) ?>" alt="<?= $customerName ?>" class="avatar">
+            <?php else: ?>
+              <div class="avatar" style="background-color: <?= $avatarColor ?>; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 20px;">
+                <?= $initial ?>
+              </div>
+            <?php endif; ?>
+            <div class="reviewer-details">
+              <div class="reviewer-name"><?= $customerName ?></div>
+              <div class="reviewer-location"><?= $reviewDate ?></div>
+            </div>
           </div>
         </div>
-      </div>
-    <?php endforeach; ?>
+      <?php endforeach; ?>
+    <?php endif; ?>
   </div>
+
+  <?php if ($totalPages > 1): ?>
+    <div class="pagination">
+        <?php if ($currentPage > 1): ?>
+            <a href="?page=<?= $currentPage - 1 ?>" class="page-btn">Previous</a>
+        <?php endif; ?>
+        
+        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+            <?php if ($i == 1 || $i == $totalPages || abs($i - $currentPage) <= 2): ?>
+                <a href="?page=<?= $i ?>" 
+                   class="page-btn <?= $i == $currentPage ? 'active' : '' ?>">
+                    <?= $i ?>
+                </a>
+            <?php elseif (abs($i - $currentPage) == 3): ?>
+                <span class="page-ellipsis">...</span>
+            <?php endif; ?>
+        <?php endfor; ?>
+        
+        <?php if ($currentPage < $totalPages): ?>
+            <a href="?page=<?= $currentPage + 1 ?>" class="page-btn">Next</a>
+        <?php endif; ?>
+    </div>
+  <?php endif; ?>
 
  <!-- Footer -->
 <footer>
